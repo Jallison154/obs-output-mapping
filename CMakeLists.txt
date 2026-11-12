@@ -30,7 +30,10 @@ target_compile_options(
   ${CMAKE_PROJECT_NAME}
   PRIVATE $<$<C_COMPILER_ID:Clang,AppleClang>:-Wno-quoted-include-in-framework-header -Wno-comma>
 )
-set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES AUTOMOC ON AUTOUIC ON AUTORCC ON CXX_STANDARD 17)
+set_target_properties(
+  ${CMAKE_PROJECT_NAME}
+  PROPERTIES AUTOMOC ON AUTOUIC ON AUTORCC ON CXX_STANDARD 17
+)
 # Don't let AUTOMOC run a bare `clang++ -dM -E` to collect predefines: inside
 # Xcode 26's script-phase environment that call fails with "conflicting
 # deployment targets". moc does not need compiler predefines for this code.
@@ -65,9 +68,10 @@ if(OS_MACOS)
   target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/platform/platform-macos.mm)
   target_link_libraries(
     ${CMAKE_PROJECT_NAME}
-    PRIVATE "$<LINK_LIBRARY:FRAMEWORK,AppKit.framework>"
-            "$<LINK_LIBRARY:FRAMEWORK,ApplicationServices.framework>"
-            "$<LINK_LIBRARY:FRAMEWORK,IOKit.framework>"
+    PRIVATE
+      "$<LINK_LIBRARY:FRAMEWORK,AppKit.framework>"
+      "$<LINK_LIBRARY:FRAMEWORK,ApplicationServices.framework>"
+      "$<LINK_LIBRARY:FRAMEWORK,IOKit.framework>"
   )
 elseif(OS_WINDOWS)
   target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/platform/platform-windows.cpp)
