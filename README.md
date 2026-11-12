@@ -23,7 +23,7 @@ Program canvas 3840×1080
 
 | Platform | Status |
 |---|---|
-| **Windows 10 (2004+) / 11, x64**, OBS 33.0.1 | **Primary target.** Native display layer (`src/platform/platform-windows.cpp`). **Not yet compiled or run on Windows:** this was developed on a Mac. Build it with the template's Windows CI or Visual Studio (below), then run [docs/windows-test-plan.md](docs/windows-test-plan.md). |
+| **Windows 10 (2004+) / 11, x64**, OBS 33.0.1 | **Primary target.** Native display layer (`src/platform/platform-windows.cpp`). Builds cleanly in CI (MSVC, warnings as errors); [download it from Releases](https://github.com/Jallison154/obs-output-mapping/releases). **Not yet run on a Windows PC:** please work through [docs/windows-test-plan.md](docs/windows-test-plan.md). |
 | macOS 13+ (universal), OBS 33.0.1 | Built and verified: 40/40 automated acceptance checks (see [VERIFICATION.md](VERIFICATION.md)) |
 | Linux | Generic Qt fallback (`platform-qt.cpp`); not built or tested |
 
@@ -159,7 +159,25 @@ is the place they would go).
 Everything else uses public libobs and obs-frontend-api calls. No private
 symbols or frontend internals are touched.
 
-## Building
+## Install on Windows (no build needed)
+
+1. Quit OBS.
+2. Go to [**Releases**](https://github.com/Jallison154/obs-output-mapping/releases) and download
+   **`output-mapping-<version>-windows-x64.zip`** from the newest release
+   (under *Assets*).
+3. Right-click the zip ▸ **Extract All…**. You get a folder named `output-mapping`.
+4. In File Explorer, paste `C:\ProgramData\obs-studio\plugins` into the
+   address bar and press Enter. Create the `plugins` folder if it doesn't
+   exist (`ProgramData` is hidden, but typing the path still works).
+5. Move the `output-mapping` folder in there, so this file exists:
+   `C:\ProgramData\obs-studio\plugins\output-mapping\bin\64bit\output-mapping.dll`
+6. Start OBS and open **Tools ▸ Output Mapping…**.
+
+To uninstall, delete that `output-mapping` folder. Every push to `main`
+also builds a fresh zip on GitHub Actions (*Actions* tab ▸ latest run ▸
+*Artifacts*; requires being signed in to GitHub).
+
+## Building from source
 
 The first configure downloads the OBS 33.0.1 sources and the matching
 prebuilt obs-deps and Qt 6 listed in `buildspec.json`, then builds libobs
@@ -167,26 +185,22 @@ and obs-frontend-api into `.deps/`. This is the standard
 [obs-plugintemplate](https://github.com/obsproject/obs-plugintemplate)
 flow.
 
-### Windows (primary)
+### Windows
 
 Requirements: Windows 10/11 x64, Visual Studio 2022 with *Desktop
 development with C++*, Windows SDK 10.0.20348 or newer, CMake 3.28+,
 Git.
 
 ```powershell
+git clone https://github.com/Jallison154/obs-output-mapping.git
+cd obs-output-mapping
 cmake --preset windows-x64
 cmake --build --preset windows-x64 --config RelWithDebInfo
 cmake --install build_x64 --prefix release --config RelWithDebInfo
 ```
 
-Install by copying the `release\output-mapping` folder (it contains
-`bin\64bit\output-mapping.dll` and `data\`) to
-`C:\ProgramData\obs-studio\plugins\`, then restart OBS. The editor is
-under **Tools ▸ Output Mapping…**.
-
-Alternatively, push the repository to GitHub: the template's **Build
-Project** workflow builds on `windows-2022` with warnings as errors and
-uploads a ready-to-install zip.
+The last command creates `release\output-mapping\` in your clone. Install
+it exactly as in step 5 above.
 
 ### macOS
 

@@ -1,8 +1,10 @@
 # Windows test plan
 
 The Windows code path (`src/platform/platform-windows.cpp`, plus the shared
-watchdog and output code) was written on a Mac and has **not yet been
-compiled or run on Windows**. Work through this list on the target PC.
+watchdog and output code) builds cleanly in CI (MSVC, warnings as errors)
+but has **not yet been run on a Windows PC**. Install it from
+[Releases](https://github.com/Jallison154/obs-output-mapping/releases) as
+described in the README. Work through this list on the target PC.
 Everything below is about 45 minutes with two external displays.
 
 Setup: OBS 33.0.1 x64, *Settings ▸ Video ▸ Base (Canvas) Resolution*
@@ -14,10 +16,9 @@ pattern.png` (each pixel encodes its own coordinates).
 
 | # | Step | Expected |
 |---|---|---|
-| A1 | `cmake --preset windows-ci-x64` then build (warnings are errors) | Builds with no warnings |
-| A2 | Install to `C:\ProgramData\obs-studio\plugins\output-mapping\` and start OBS | The log shows `[output-mapping] plugin loaded successfully` and `registered obs-websocket vendor`; **Tools ▸ Output Mapping…** exists |
-| A3 | Open the editor | The empty state shows; both previews are live; the status bar hints say **Ctrl** / **Alt** (not ⌘/⌥) |
-| A4 | Set Windows scaling to 150 %, restart OBS, open the editor | The previews are sharp and correctly sized, and handles line up with the video |
+| A1 | Install the release zip to `C:\ProgramData\obs-studio\plugins\output-mapping\` and start OBS | The log shows `[output-mapping] plugin loaded successfully` and `registered obs-websocket vendor`; **Tools ▸ Output Mapping…** exists |
+| A2 | Open the editor | The empty state shows; both previews are live; the status bar hints say **Ctrl** / **Alt** (not ⌘/⌥) |
+| A3 | Set Windows scaling to 150 %, restart OBS, open the editor | The previews are sharp and correctly sized, and handles line up with the video |
 
 ## B. Identity
 
