@@ -17,6 +17,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <atomic>
 #include <cmath>
 #include <cstring>
+#include <deque>
 #include <unordered_map>
 #include <vector>
 #include <future>
@@ -35,13 +36,19 @@ static gs_vertbuffer_t *g_quad = nullptr;
 /* slot; when the ring is full, the oldest slot is exactly N frames old   */
 /* and is what the output shows. All on the GPU.                          */
 
+/* Smooth delay changes: the shown frame's age (frames behind live) ramps
+ * toward the target instead of jumping, so adjusting the delay live never
+ * flashes black or jumps. More delay -> half-speed playback until reached;
+ * less delay -> double speed. Turning delay on/off ramps from/to live. */
+static constexpr double kRampSlower = 0.5; /* age gained per frame (plays at 0.5x) */
+static constexpr double kRampFaster = 1.0; /* age lost per frame (plays at 2x)   */
+
 struct DelayLine {
 	uint32_t w = 0, h = 0;
-	int frames = 0;
-	std::vector<gs_texrender_t *> ring;
-	int head = 0;
-	int filled = 0;
-	int readSlot = -1; /* -1 while the buffer fills */
+	std::deque<gs_texrender_t *> hist;  /* oldest front, newest back */
+	std::vector<gs_texrender_t *> pool; /* recycled render targets */
+	double age = 0.0;                   /* frames behind live being shown */
+	gs_texrender_t *show = nullptr;     /* what outputs draw this frame */
 	bool failed = false;
 };
 
@@ -49,7 +56,9 @@ static std::unordered_map<std::string, DelayLine> g_delays;
 
 static void destroyLine(DelayLine &l)
 {
-	for (gs_texrender_t *t : l.ring)
+	for (gs_texrender_t *t : l.hist)
+		gs_texrender_destroy(t);
+	for (gs_texrender_t *t : l.pool)
 		gs_texrender_destroy(t);
 	l = DelayLine{};
 }
@@ -216,12 +225,11 @@ void renderDisplay(const RenderDisplay &rd, uint32_t cx, uint32_t cy, bool fit)
 	gs_set_viewport(vx, vy, vw, vh);
 	gs_ortho(0.0f, (float)rd.width, 0.0f, (float)rd.height, -100.0f, 100.0f);
 
-	if (rd.delayMs > 0) {
-		/* Delayed output: show the frame from N frames ago (black while
-		 * the buffer fills after start or a delay change). */
-		auto it = g_delays.find(rd.id);
-		if (it != g_delays.end() && it->second.readSlot >= 0) {
-			gs_texture_t *tex = gs_texrender_get_texture(it->second.ring[(size_t)it->second.readSlot]);
+	auto line = g_delays.find(rd.id);
+	if (line != g_delays.end() && line->second.show) {
+		/* Delayed (or ramping) output: draw the buffered frame. */
+		gs_texture_t *tex = gs_texrender_get_texture(line->second.show);
+		{
 			if (tex) {
 				const bool prevSrgb = gs_framebuffer_srgb_enabled();
 				gs_enable_framebuffer_srgb(true);
@@ -271,10 +279,9 @@ static void delayTick(void *)
 {
 	auto st = RenderStore::instance().get();
 
-	/* Drop lines for displays that no longer exist or are now live. */
+	/* Lines for displays that no longer exist are dropped at once. */
 	for (auto it = g_delays.begin(); it != g_delays.end();) {
-		auto d = st->displays.find(it->first);
-		if (d == st->displays.end() || d->second.delayMs <= 0) {
+		if (st->displays.find(it->first) == st->displays.end()) {
 			destroyLine(it->second);
 			it = g_delays.erase(it);
 		} else {
@@ -287,34 +294,41 @@ static void delayTick(void *)
 
 	for (const auto &kv : st->displays) {
 		const RenderDisplay &rd = kv.second;
-		if (rd.delayMs <= 0 || rd.width <= 0 || rd.height <= 0)
+		const int target = rd.delayMs > 0 ? delayFrames(rd.delayMs) : 0;
+		auto existing = g_delays.find(kv.first);
+		/* Live and not ramping: nothing to buffer. */
+		if (target <= 0 && existing == g_delays.end())
 			continue;
-		const int n = delayFrames(rd.delayMs);
-		if (n <= 0)
-			continue;
-		DelayLine &l = g_delays[kv.first];
-		const uint32_t w = (uint32_t)rd.width, h = (uint32_t)rd.height;
-		if (l.w != w || l.h != h || l.frames != n) {
-			destroyLine(l);
-			l.w = w;
-			l.h = h;
-			l.frames = n;
-			l.ring.resize((size_t)n + 1, nullptr);
-			for (auto &t : l.ring)
-				t = gs_texrender_create(GS_BGRA, GS_ZS_NONE);
-		}
-		if (l.failed)
+		if (rd.width <= 0 || rd.height <= 0)
 			continue;
 
-		gs_texrender_t *tr = l.ring[(size_t)l.head];
+		DelayLine &l = g_delays[kv.first];
+		const uint32_t w = (uint32_t)rd.width, h = (uint32_t)rd.height;
+		if (l.w != w || l.h != h) {
+			destroyLine(l); /* resolution changed: start over */
+			l.w = w;
+			l.h = h;
+		}
+		if (l.failed) {
+			l.show = nullptr;
+			continue;
+		}
+
+		/* Compose the current frame into a recycled (or new) target. */
+		gs_texrender_t *tr = nullptr;
+		if (!l.pool.empty()) {
+			tr = l.pool.back();
+			l.pool.pop_back();
+		} else {
+			tr = gs_texrender_create(GS_BGRA, GS_ZS_NONE);
+		}
 		gs_texrender_reset(tr);
-		if (!gs_texrender_begin_with_color_space(tr, w, h, GS_CS_SRGB)) {
-			/* Out of GPU memory: never show a partial ring. */
-			blog(LOG_ERROR,
-			     "[output-mapping] could not allocate %d frame(s) of delay for %ux%u; delay disabled", n, w,
+		if (!tr || !gs_texrender_begin_with_color_space(tr, w, h, GS_CS_SRGB)) {
+			blog(LOG_ERROR, "[output-mapping] out of GPU memory for %ux%u delay buffer; delay disabled", w,
 			     h);
+			gs_texrender_destroy(tr);
 			l.failed = true;
-			l.readSlot = -1;
+			l.show = nullptr;
 			continue;
 		}
 		vec4 black;
@@ -329,12 +343,35 @@ static void delayTick(void *)
 		gs_matrix_pop();
 		gs_projection_pop();
 		gs_texrender_end(tr);
+		l.hist.push_back(tr);
 
-		const int size = n + 1;
-		l.filled = std::min(l.filled + 1, size);
-		l.head = (l.head + 1) % size;
-		/* After writing frame t, the next slot holds frame t-N. */
-		l.readSlot = l.filled >= size ? l.head : -1;
+		/* Ramp the shown age toward the target. */
+		if (l.age < target)
+			l.age = std::min((double)target, l.age + kRampSlower);
+		else if (l.age > target)
+			l.age = std::max((double)target, l.age - kRampFaster);
+		l.age = std::min(l.age, (double)(l.hist.size() - 1));
+
+		/* Keep exactly the history still needed; recycle the rest. */
+		const size_t keep = (size_t)std::max(target, (int)std::ceil(l.age)) + 1;
+		while (l.hist.size() > keep) {
+			l.pool.push_back(l.hist.front());
+			l.hist.pop_front();
+		}
+		while (l.pool.size() > 2) {
+			gs_texrender_destroy(l.pool.back());
+			l.pool.pop_back();
+		}
+
+		if (target == 0 && l.age <= 0.0) {
+			/* Ramped all the way back to live: hand over to direct
+			 * compositing (identical picture) and free the buffer. */
+			destroyLine(l);
+			g_delays.erase(kv.first);
+			continue;
+		}
+		const size_t idx = l.hist.size() - 1 - (size_t)std::floor(l.age);
+		l.show = l.hist[idx];
 	}
 }
 

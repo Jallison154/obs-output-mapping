@@ -59,13 +59,21 @@ is the place they would go).
     bottom). *Auto* (default) stacks them when the Program canvas is wider
     than 2:1, which on 3840×1080 more than doubles each preview's size. The
     choice is remembered.
+  - **Lock slices** that are set up correctly: tick **🔒 Locked** in the
+    slice panel, press Ctrl/⌘+L, or right-click it (or *Lock All Slices* on
+    a display). A locked slice can still be selected and inspected, but it
+    can't be dragged, resized, nudged, typed into, fit, set to 1:1, deleted
+    or moved to another display; reordering it in the list is still allowed.
+    The lock is saved with mappings and presets.
   - **Delay** (per display, 0–1000 ms): delays that output's video, e.g. to
     line up displays with different processing latency or to match delayed
     audio. Rounded to whole frames; the editor shows the frame count and GPU
-    memory used (1080p ≈ 8 MB per frame). Frames are buffered on the GPU,
-    and the output is black for one delay period after starting or changing
-    it. Previews stay live while you edit; the output and snapshots are
-    delayed. Audio isn't delayed (use OBS's per-source Sync Offset).
+    memory used (1080p ≈ 8 MB per frame). Frames are buffered on the GPU.
+    **Changing the delay live never flashes**: the output smoothly slows to
+    half speed (more delay) or speeds up to 2x (less delay) until it reaches
+    the new value, and turning delay on or off ramps from or to live.
+    Previews stay live while you edit; the output and snapshots are delayed.
+    Audio isn't delayed (use OBS's per-source Sync Offset).
   - **Presets ▾**: save the whole layout (displays, slices, positions)
     under a name and recall it with one click. Recall is live-safe: running
     outputs stay up if the preset still uses their display, the others stop,
@@ -80,7 +88,7 @@ is the place they would go).
     go. The sidebar shows each display's state at a glance (READY, LIVE,
     WINDOW, OFFLINE, CHECK, VIRTUAL), and each slice shows 1:1 or scaled.
   - An empty state walks you through adding the first display.
-  - **Fit to Display** and **1:1 Pixels** actions.
+  - **Fit** (to display) and **1:1** (pixel for pixel) actions.
   - Outlines, labels, handles and guides are drawn only in the editor. The
     outputs carry only the composed video.
 - **Outputs**
@@ -279,7 +287,8 @@ mkdir -p ~/Library/Application\ Support/obs-studio/plugins && ditto ~/Library/Ca
    - Slice 1: Source `0 0 1920 1080`, Dest `0 0 1920 1080`
    - Slice 2: Source `1920 0 1920 1080`, Dest `0 0 1920 1080`
 7. Click **▶ Start Fullscreen** for each display, or **▶ Start All** in
-   the toolbar. Each display now shows its half of Program.
+   the toolbar. Once a slice is right, tick **🔒 Locked** so it can't be
+   knocked out of place. Each display now shows its half of Program.
    Switch scenes in OBS and both outputs follow, including transitions.
 8. Fine-tuning:
    - In **Input Selection**, drag a slice to grab a different area. Its
@@ -314,7 +323,8 @@ Vendor name `output-mapping`, called via `CallVendorRequest`:
 | `StartAll` / `StopAll` | – | All exactly identified displays / all outputs |
 | `Undo` / `Redo` | – | Same as the editor buttons |
 | `ListPresets` / `SavePreset` / `LoadPreset` / `DeletePreset` | `{name}` | Layout presets, e.g. recall from a Stream Deck |
-| `SetDelay` | `{displayName, delayMs}` | Per-output video delay (0 = live) |
+| `SetDelay` | `{displayName, delayMs}` | Per-output video delay (0 = live); changes ramp smoothly |
+| `SetSliceLocked` | `{sliceName` or `sliceId, locked}` | Lock or unlock a slice |
 | `Snapshot` | `{displayName, path}` | Render exactly what the display receives to `.png` / `.ppm` |
 | `OpenEditor` / `CloseEditor` / `Select` | … | Editor control |
 | `EditorDrag` / `EditorKey` | … | Automation only: needs `OUTPUT_MAPPING_AUTOMATION=1`. Feeds synthetic mouse and keyboard events to the real editor handlers. |

@@ -342,7 +342,18 @@ def phase_mapping(ws, work, fullscreen_builtin):
     ws.call("SetCurrentProgramScene", {"sceneName": "Scene A"})
     r = ws.vendor("SetDelay", {"displayName": "HDMI-2", "delayMs": 500})
     check("Set 500 ms delay on HDMI-2", r.get("ok") and disp(r["state"], "HDMI-2")["delayMs"] == 500)
-    time.sleep(1.5)  # buffer fills (one delay period) and shows Scene A
+
+    def no_black_while(label, seconds):
+        bad, n, t_end = 0, 0, time.time() + seconds
+        while time.time() < t_end:
+            p = snapshot(ws, "HDMI-2", os.path.join(work, "ramp.ppm"))
+            n += 1
+            if pixel(p, 400, 400) == (0, 0, 0) or pixel(p, 1500, 900) == (0, 0, 0):
+                bad += 1
+        check(label, bad == 0 and n >= 5, f"{bad} black of {n} frames sampled")
+
+    no_black_while("Turning delay on never shows black (smooth ramp)", 1.2)
+    time.sleep(0.5)  # ramp to 500 ms completes (~1 s at 30 fps)
     ws.call("SetCurrentProgramScene", {"sceneName": "Scene B"})
     t0 = time.time()
     time.sleep(0.15)
@@ -358,12 +369,40 @@ def phase_mapping(ws, work, fullscreen_builtin):
     b = snapshot(ws, "HDMI-2", os.path.join(work, "delay_hdmi2_late.ppm"))
     r = compare(b, expect_crop(1920, 0, 200, 100, TAG_B), step=4)
     check("Delayed HDMI-2 shows Scene B after the delay, pixel-exact", r[0] == 0, f"mismatches={r[0]}")
+    ws.vendor("SetDelay", {"displayName": "HDMI-2", "delayMs": 300})
+    no_black_while("Changing delay 500 -> 300 ms live never shows black", 0.8)
     ws.vendor("SetDelay", {"displayName": "HDMI-2", "delayMs": 0})
+    no_black_while("Turning delay off never shows black", 0.8)
+    b = snapshot(ws, "HDMI-2", os.path.join(work, "delay_off.ppm"))
+    r = compare(b, expect_crop(1920, 0, 200, 100, TAG_B), step=4)
+    check("After turning delay off, HDMI-2 is live and pixel-exact", r[0] == 0, f"mismatches={r[0]}")
     ws.call("SetCurrentProgramScene", {"sceneName": "Scene A"})  # still a Cut: instant
     time.sleep(0.3)
     ws.call("SetCurrentSceneTransition", {"transitionName": "Fade"})
     ws.call("SetCurrentSceneTransitionDuration", {"transitionDuration": 1500})
     time.sleep(0.5)
+
+    # Slice locking: a locked slice can't be dragged, nudged or deleted.
+    ws.vendor("Select", {"sliceName": "Slice 1"})
+    _, before = slice_by_name(state(ws), "Slice 1")
+    r = ws.vendor("SetSliceLocked", {"sliceName": "Slice 1", "locked": True})
+    _, s1l = slice_by_name(r["state"], "Slice 1")
+    check("Lock Slice 1", s1l.get("locked") is True)
+    ws.vendor("EditorDrag", {"view": "input", "fromX": 960, "fromY": 540, "toX": 1260, "toY": 640, "alt": True})
+    ws.vendor("EditorDrag", {"view": "output", "fromX": 960, "fromY": 540, "toX": 1160, "toY": 640, "alt": True})
+    for _ in range(3):
+        ws.vendor("EditorKey", {"view": "output", "key": 0x01000014})  # Right
+    ws.vendor("EditorKey", {"view": "input", "key": 0x01000007})  # Delete
+    _, after = slice_by_name(state(ws), "Slice 1")
+    check("Locked slice ignores drags, nudges and Delete", after["src"] == before["src"] and
+          after["dst"] == before["dst"], f"{rl(after['src'])} {rl(after['dst'])}")
+    ws.vendor("SetSliceLocked", {"sliceName": "Slice 1", "locked": False})
+    ws.vendor("EditorKey", {"view": "output", "key": 0x01000014})  # Right
+    _, unl = slice_by_name(state(ws), "Slice 1")
+    check("Unlocked slice can be edited again", rl(unl["dst"])[0] == rl(before["dst"])[0] + 1, str(rl(unl["dst"])))
+    ws.vendor("EditorKey", {"view": "output", "key": 0x01000012})  # Left (back)
+    ws.vendor("SetSliceLocked", {"sliceName": "Slice 1", "locked": True})  # stays locked: checked after restart
+    time.sleep(0.8)
 
     # Layout presets: save, change, recall (running output must stay up).
     r = ws.vendor("SavePreset", {"name": "acceptance-A"})
@@ -488,6 +527,7 @@ def phase_restart(ws, s1b, s2b, fullscreen_builtin):
     _, s1 = slice_by_name(st, "Slice 1")
     _, s2 = slice_by_name(st, "Slice 2")
     check("Slice 1 persisted (src+dst)", s1["src"] == s1b["src"] and s1["dst"] == s1b["dst"], f"{s1['src']} {s1['dst']}")
+    check("Slice 1 lock persisted across restart", s1.get("locked") is True)
     check("Slice 2 persisted (src+dst)", s2["src"] == s2b["src"] and s2["dst"] == s2b["dst"], f"{s2['src']} {s2['dst']}")
     check("Display names / kinds persisted",
           [d["name"] for d in st["displays"]][:4] == ["HDMI-1", "HDMI-2", "Missing HDMI", "Twin Display"],

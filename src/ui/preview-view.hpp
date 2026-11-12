@@ -71,6 +71,7 @@ signals:
 	void zoomChanged(double zoom);
 	void hoverChanged(QPointF canvasPos, bool inside);
 	void needDisplay(); /* user tried to draw with no display */
+	void blockedByLock(const QString &sliceId);
 
 protected:
 	void renderFrame(uint32_t cx, uint32_t cy) override;
@@ -93,12 +94,13 @@ private:
 		uint32_t color = 0;
 		bool selected = false;
 		bool dim = false;
+		bool locked = false;
 	};
 
 	struct OverlayItem {
 		IRect rect;
 		uint32_t color = 0;
-		bool selected = false, hovered = false, dim = false;
+		bool selected = false, hovered = false, dim = false, locked = false;
 		std::string labelKey;
 		QImage label;
 	};

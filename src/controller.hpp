@@ -82,6 +82,9 @@ public:
 	void deleteSlice(const QString &sliceId);
 	void renameSlice(const QString &sliceId, const QString &name);
 	void setSliceEnabled(const QString &sliceId, bool enabled);
+	void setSliceLocked(const QString &sliceId, bool locked);
+	void setDisplayLocked(const QString &displayId, bool locked); /* all its slices */
+	bool isSliceLocked(const QString &sliceId) const;
 	void setSliceSrc(const QString &sliceId, const IRect &r);
 	void setSliceDst(const QString &sliceId, const IRect &r);
 	void moveSlice(const QString &sliceId, const QString &toDisplayId, int index);

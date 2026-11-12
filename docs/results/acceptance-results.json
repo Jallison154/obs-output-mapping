@@ -95,12 +95,17 @@
     "detail": ""
   },
   {
+    "check": "Turning delay on never shows black (smooth ramp)",
+    "pass": true,
+    "detail": "0 black of 36 frames sampled"
+  },
+  {
     "check": "Undelayed HDMI-1 switched to Scene B immediately",
     "pass": true,
     "detail": "(202, 180, 200)"
   },
   {
-    "check": "Delayed HDMI-2 still shows Scene A 223 ms after the cut",
+    "check": "Delayed HDMI-2 still shows Scene A 209 ms after the cut",
     "pass": true,
     "detail": "(216, 132, 112)"
   },
@@ -108,6 +113,36 @@
     "check": "Delayed HDMI-2 shows Scene B after the delay, pixel-exact",
     "pass": true,
     "detail": "mismatches=0"
+  },
+  {
+    "check": "Changing delay 500 -> 300 ms live never shows black",
+    "pass": true,
+    "detail": "0 black of 24 frames sampled"
+  },
+  {
+    "check": "Turning delay off never shows black",
+    "pass": true,
+    "detail": "0 black of 24 frames sampled"
+  },
+  {
+    "check": "After turning delay off, HDMI-2 is live and pixel-exact",
+    "pass": true,
+    "detail": "mismatches=0"
+  },
+  {
+    "check": "Lock Slice 1",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "check": "Locked slice ignores drags, nudges and Delete",
+    "pass": true,
+    "detail": "[100, 50, 1920, 1080] [0, 0, 1920, 1080]"
+  },
+  {
+    "check": "Unlocked slice can be edited again",
+    "pass": true,
+    "detail": "[1, 0, 1920, 1080]"
   },
   {
     "check": "Save preset",
@@ -203,6 +238,11 @@
     "check": "Slice 1 persisted (src+dst)",
     "pass": true,
     "detail": "{'h': 1080, 'w': 1920, 'x': 100, 'y': 50} {'h': 1080, 'w': 1920, 'x': 0, 'y': 0}"
+  },
+  {
+    "check": "Slice 1 lock persisted across restart",
+    "pass": true,
+    "detail": ""
   },
   {
     "check": "Slice 2 persisted (src+dst)",

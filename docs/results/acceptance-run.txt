@@ -25,9 +25,16 @@ Setting up OBS: 3840x1080 canvas, two test-pattern scenes, Fade transition
   [PASS] Undo restores the deleted slice exactly — [1920, 0, 1920, 1080] [200, 100, 1920, 1080]
   [PASS] Redo re-applies, undo brings it back
   [PASS] Set 500 ms delay on HDMI-2
+  [PASS] Turning delay on never shows black (smooth ramp) — 0 black of 36 frames sampled
   [PASS] Undelayed HDMI-1 switched to Scene B immediately — (202, 180, 200)
-  [PASS] Delayed HDMI-2 still shows Scene A 223 ms after the cut — (216, 132, 112)
+  [PASS] Delayed HDMI-2 still shows Scene A 209 ms after the cut — (216, 132, 112)
   [PASS] Delayed HDMI-2 shows Scene B after the delay, pixel-exact — mismatches=0
+  [PASS] Changing delay 500 -> 300 ms live never shows black — 0 black of 24 frames sampled
+  [PASS] Turning delay off never shows black — 0 black of 24 frames sampled
+  [PASS] After turning delay off, HDMI-2 is live and pixel-exact — mismatches=0
+  [PASS] Lock Slice 1
+  [PASS] Locked slice ignores drags, nudges and Delete — [100, 50, 1920, 1080] [0, 0, 1920, 1080]
+  [PASS] Unlocked slice can be edited again — [1, 0, 1920, 1080]
   [PASS] Save preset — acceptance-A
   [PASS] Recall preset restores the saved layout — moved [205, 100, 1920, 1080] -> recalled [200, 100, 1920, 1080]
   [PASS] Recall keeps running outputs on displays the preset still uses — window
@@ -55,6 +62,7 @@ Restarting OBS…
 
 == 6  After restart: persistence and missing displays ==
   [PASS] Slice 1 persisted (src+dst) — {'h': 1080, 'w': 1920, 'x': 100, 'y': 50} {'h': 1080, 'w': 1920, 'x': 0, 'y': 0}
+  [PASS] Slice 1 lock persisted across restart
   [PASS] Slice 2 persisted (src+dst) — {'h': 1080, 'w': 1920, 'x': 1920, 'y': 0} {'h': 1080, 'w': 1920, 'x': 200, 'y': 100}
   [PASS] Display names / kinds persisted — ['HDMI-1', 'HDMI-2', 'Missing HDMI', 'Twin Display', 'Built-in']
   [PASS] Missing display shown as disconnected after restart — Disconnected
@@ -65,5 +73,5 @@ Restarting OBS…
   [PASS] No fullscreen output on any unidentified display — ['Built-in']
   OBS exited cleanly
 
-49/49 checks passed
+57/57 checks passed
 EXIT 0

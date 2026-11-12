@@ -261,7 +261,8 @@ void MappingEditor::updatePresetsButton()
 		presetsBtn_->setToolTip(
 			QStringLiteral("Save and recall complete layouts (displays, slices, positions)"));
 	} else {
-		presetsBtn_->setText(QStringLiteral("Preset: %1%2 ▾").arg(cur, c_->presetModified() ? " •" : ""));
+		const QString shown = cur.size() > 16 ? cur.left(15) + QStringLiteral("…") : cur;
+		presetsBtn_->setText(QStringLiteral("%1%2 ▾").arg(shown, c_->presetModified() ? " •" : ""));
 		presetsBtn_->setToolTip(c_->presetModified()
 						? QStringLiteral("Changed since “%1” was saved or recalled").arg(cur)
 						: QStringLiteral("Matches the saved preset “%1”").arg(cur));
@@ -354,9 +355,10 @@ void MappingEditor::applyLayout()
 		stacked = ph > 0 && pw > 2 * ph; /* wider than 2:1 */
 
 	const QString label = layoutMode_ == QLatin1String("auto")
-				      ? QStringLiteral("Layout: Auto (%1) ▾").arg(stacked ? "Stacked" : "Side by Side")
-				      : QStringLiteral("Layout: %1 ▾").arg(stacked ? "Stacked" : "Side by Side");
-	layoutBtn_->setText(label);
+				      ? QStringLiteral("Auto (%1)").arg(stacked ? "stacked" : "side by side")
+				      : QString::fromLatin1(stacked ? "Stacked" : "Side by side");
+	layoutBtn_->setText(QStringLiteral("Layout ▾"));
+	layoutBtn_->setToolTip(QStringLiteral("Preview layout: %1").arg(label));
 
 	const Qt::Orientation want = stacked ? Qt::Vertical : Qt::Horizontal;
 	if (previews_->orientation() != want) {
@@ -391,6 +393,15 @@ void MappingEditor::buildUi()
 	addSliceAct_->setToolTip(
 		QStringLiteral("Add a slice to the selected display (or just drag on Input Selection)"));
 	tb->addSeparator();
+	/* Live controls sit on the left so they can never overflow off the
+	 * toolbar on narrow windows. */
+	tb->addAction(QStringLiteral("▶ Start All"), this, [this]() {
+		  c_->startAll();
+	  })->setToolTip(QStringLiteral("Start fullscreen on every display that is connected and identified"));
+	tb->addAction(QStringLiteral("■ Stop All"), this, [this]() {
+		  c_->stopAll();
+	  })->setToolTip(QStringLiteral("Stop every output (fullscreen and windows)"));
+	tb->addSeparator();
 
 	undoAct_ = tb->addAction(QStringLiteral("Undo"), this, [this]() { c_->undo(); });
 	undoAct_->setShortcut(QKeySequence::Undo);
@@ -416,13 +427,20 @@ void MappingEditor::buildUi()
 	dupAct_ =
 		tb->addAction(QStringLiteral("Duplicate"), this, [this]() { c_->duplicateSlice(c_->selectedSlice()); });
 	dupAct_->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
+	lockSliceAct_ = new QAction(QStringLiteral("Lock Slice"), this);
+	lockSliceAct_->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_L));
+	lockSliceAct_->setShortcutContext(Qt::WindowShortcut);
+	addAction(lockSliceAct_);
+	connect(lockSliceAct_, &QAction::triggered, this, [this]() {
+		const QString id = c_->selectedSlice();
+		if (!id.isEmpty())
+			c_->setSliceLocked(id, !c_->isSliceLocked(id));
+	});
 	delAct_ = tb->addAction(QStringLiteral("Delete"), this, [this]() { c_->deleteSlice(c_->selectedSlice()); });
 	tb->addSeparator();
-	fitAct_ = tb->addAction(QStringLiteral("Fit to Display"), this,
-				[this]() { c_->fitSliceToDisplay(c_->selectedSlice()); });
+	fitAct_ = tb->addAction(QStringLiteral("Fit"), this, [this]() { c_->fitSliceToDisplay(c_->selectedSlice()); });
 	fitAct_->setToolTip(QStringLiteral("Scale the output to fill the display, keeping the source's aspect ratio"));
-	oneAct_ =
-		tb->addAction(QStringLiteral("1:1 Pixels"), this, [this]() { c_->sliceOneToOne(c_->selectedSlice()); });
+	oneAct_ = tb->addAction(QStringLiteral("1:1"), this, [this]() { c_->sliceOneToOne(c_->selectedSlice()); });
 	oneAct_->setToolTip(QStringLiteral("Make the output exactly the source size (pixel for pixel)"));
 	tb->addSeparator();
 	snapAct_ = tb->addAction(QStringLiteral("Snap"));
@@ -430,7 +448,7 @@ void MappingEditor::buildUi()
 	snapAct_->setChecked(true);
 	snapAct_->setToolTip(
 		QStringLiteral("Snap to edges, centre and other slices (hold %1 to bypass)").arg(altKeyName()));
-	lockAct_ = tb->addAction(QStringLiteral("Lock Aspect"));
+	lockAct_ = tb->addAction(QStringLiteral("Keep Aspect"));
 	lockAct_->setCheckable(true);
 	lockAct_->setToolTip(QStringLiteral("Keep aspect ratio while resizing (hold Shift to toggle temporarily)"));
 	tb->addSeparator();
@@ -505,12 +523,6 @@ void MappingEditor::buildUi()
 	optBtn->setMenu(optMenu);
 	tb->addWidget(optBtn);
 
-	tb->addAction(QStringLiteral("▶ Start All"), this, [this]() {
-		  c_->startAll();
-	  })->setToolTip(QStringLiteral("Start fullscreen on every display that is connected and identified"));
-	tb->addAction(QStringLiteral("■ Stop All"), this, [this]() {
-		  c_->stopAll();
-	  })->setToolTip(QStringLiteral("Stop every output (fullscreen and windows)"));
 	root->addWidget(tb);
 
 	/* --- body --- */
@@ -623,6 +635,12 @@ void MappingEditor::buildUi()
 						     .arg((int)std::floor(p.y())));
 		});
 		connect(v, &PreviewView::needDisplay, this, [this]() { addDisplayBtn_->showMenu(); });
+		connect(v, &PreviewView::blockedByLock, this, [this](const QString &sliceId) {
+			const Slice *s = c_->doc().slice(sliceId);
+			statusLeft_->setText(
+				QStringLiteral("🔒 “%1” is locked. Unlock it (%2+L, or the Locked box) to change it.")
+					.arg(s ? s->name : QString(), modKeyName()));
+		});
 	}
 	connect(input_, &PreviewView::zoomChanged, this,
 		[this](double z) { inZoom_->setText(QStringLiteral("%1%").arg(qRound(z * 100))); });
@@ -752,8 +770,17 @@ QWidget *MappingEditor::buildInspector()
 	sliceEnabled_ = new QCheckBox(QStringLiteral("Visible"), sliceBox_);
 	nameRow->addWidget(sliceSwatch_);
 	nameRow->addWidget(sliceName_, 1);
-	nameRow->addWidget(sliceEnabled_);
+	sliceLocked_ = new QCheckBox(QStringLiteral("🔒 Locked"), sliceBox_);
+	sliceLocked_->setToolTip(QStringLiteral("Protect this slice: it can't be moved, resized, deleted or sent to "
+						"another display until unlocked (%1+L)")
+					 .arg(modKeyName()));
 	sv->addLayout(nameRow);
+	auto *flagsRow = new QHBoxLayout();
+	flagsRow->addWidget(sliceEnabled_);
+	flagsRow->addSpacing(12);
+	flagsRow->addWidget(sliceLocked_);
+	flagsRow->addStretch(1);
+	sv->addLayout(flagsRow);
 
 	auto *grid = new QGridLayout();
 	grid->setHorizontalSpacing(4);
@@ -794,11 +821,11 @@ QWidget *MappingEditor::buildInspector()
 	sf->addRow(QStringLiteral("On display"), sliceDisplay_);
 	sv->addLayout(sf);
 
-	lockCheck_ = new QCheckBox(QStringLiteral("Lock aspect ratio"), sliceBox_);
+	lockCheck_ = new QCheckBox(QStringLiteral("Keep aspect ratio when resizing"), sliceBox_);
 	sv->addWidget(lockCheck_);
 	auto *sb = new QGridLayout();
-	auto *fitBtn = new QPushButton(QStringLiteral("Fit to Display"), sliceBox_);
-	auto *oneBtn = new QPushButton(QStringLiteral("1:1 Pixels"), sliceBox_);
+	auto *fitBtn = fitBtn_ = new QPushButton(QStringLiteral("Fit to Display"), sliceBox_);
+	auto *oneBtn = oneBtn_ = new QPushButton(QStringLiteral("1:1 Pixels"), sliceBox_);
 	auto *upBtn = new QPushButton(QStringLiteral("Bring Forward"), sliceBox_);
 	auto *downBtn = new QPushButton(QStringLiteral("Send Backward"), sliceBox_);
 	sb->addWidget(fitBtn, 0, 0);
@@ -903,6 +930,10 @@ QWidget *MappingEditor::buildInspector()
 
 	connect(sliceName_, &QLineEdit::editingFinished, this,
 		[this]() { c_->renameSlice(c_->selectedSlice(), sliceName_->text()); });
+	connect(sliceLocked_, &QCheckBox::toggled, this, [this](bool on) {
+		if (!updating_)
+			c_->setSliceLocked(c_->selectedSlice(), on);
+	});
 	connect(sliceEnabled_, &QCheckBox::toggled, this, [this](bool on) {
 		if (!updating_)
 			c_->setSliceEnabled(c_->selectedSlice(), on);
@@ -966,9 +997,11 @@ void MappingEditor::rebuildTree()
 			si->setText(0, s.name);
 			si->setIcon(0, dotIcon(s.color, true));
 			const bool oneToOne = s.src.w == s.dst.w && s.src.h == s.dst.h;
-			si->setText(1, !s.enabled ? QStringLiteral("hidden")
-				       : oneToOne ? QStringLiteral("1:1")
-						  : QStringLiteral("scaled"));
+			si->setText(1, QStringLiteral("%1%2")
+					       .arg(s.locked ? QStringLiteral("🔒 ") : QString())
+					       .arg(!s.enabled ? QStringLiteral("hidden")
+						    : oneToOne ? QStringLiteral("1:1")
+							       : QStringLiteral("scaled")));
 			si->setForeground(1, QColor(theme::kMuted));
 			si->setToolTip(0, QStringLiteral("Source %1,%2 %3×%4  →  Output %5,%6 %7×%8")
 						  .arg(s.src.x)
@@ -1107,8 +1140,9 @@ void MappingEditor::updateInspector()
 			const double fps = gfx::videoFps();
 			const double mb = (double)(frames + 1) * d->width * d->height * 4.0 / (1024.0 * 1024.0);
 			delayInfo_->setText(
-				QStringLiteral("%1 frame(s) at %2 fps (%3 ms actual) · about %4 MB of GPU memory. "
-					       "Previews stay live; the output and snapshots are delayed.")
+				QStringLiteral(
+					"%1 frame(s) at %2 fps (%3 ms actual) · about %4 MB of GPU memory. "
+					"Changes ramp smoothly (no black). Previews stay live; the output is delayed.")
 					.arg(frames)
 					.arg(fps, 0, 'f', fps == std::floor(fps) ? 0 : 2)
 					.arg(fps > 0 ? qRound(frames * 1000.0 / fps) : 0)
@@ -1147,6 +1181,15 @@ void MappingEditor::updateInspector()
 			sliceName_->setText(s->name);
 		sliceSwatch_->setStyleSheet(QStringLiteral("background:%1;border-radius:3px;").arg(s->color.name()));
 		sliceEnabled_->setChecked(s->enabled);
+		sliceLocked_->setChecked(s->locked);
+		for (int i = 0; i < 4; i++) {
+			src_[i]->setEnabled(!s->locked);
+			dst_[i]->setEnabled(!s->locked);
+		}
+		fitBtn_->setEnabled(!s->locked);
+		oneBtn_->setEnabled(!s->locked);
+		sliceDisplay_->setEnabled(!s->locked);
+		lockCheck_->setEnabled(!s->locked);
 		const int sv[4] = {s->src.x, s->src.y, s->src.w, s->src.h};
 		const int dv[4] = {s->dst.x, s->dst.y, s->dst.w, s->dst.h};
 		for (int i = 0; i < 4; i++) {
@@ -1204,9 +1247,12 @@ void MappingEditor::updateActions()
 	const bool hasDisplay = !c_->selectedDisplay().isEmpty();
 	addSliceAct_->setEnabled(hasDisplay);
 	dupAct_->setEnabled(hasSlice);
-	delAct_->setEnabled(hasSlice);
-	fitAct_->setEnabled(hasSlice);
-	oneAct_->setEnabled(hasSlice);
+	const bool locked = hasSlice && c_->isSliceLocked(c_->selectedSlice());
+	delAct_->setEnabled(hasSlice && !locked);
+	fitAct_->setEnabled(hasSlice && !locked);
+	oneAct_->setEnabled(hasSlice && !locked);
+	lockSliceAct_->setEnabled(hasSlice);
+	lockSliceAct_->setText(locked ? QStringLiteral("Unlock Slice") : QStringLiteral("Lock Slice"));
 	undoAct_->setEnabled(c_->canUndo());
 	redoAct_->setEnabled(c_->canRedo());
 }
@@ -1271,11 +1317,19 @@ void MappingEditor::showTreeMenu(const QPoint &pos)
 		menu.addAction(QStringLiteral("Fit to Display"), this, [this, id]() { c_->fitSliceToDisplay(id); });
 		menu.addAction(QStringLiteral("1:1 Pixels"), this, [this, id]() { c_->sliceOneToOne(id); });
 		menu.addSeparator();
-		menu.addAction(QStringLiteral("Delete"), this, [this, id]() { c_->deleteSlice(id); });
+		const bool isLocked = c_->isSliceLocked(id);
+		menu.addAction(isLocked ? QStringLiteral("Unlock Slice") : QStringLiteral("Lock Slice"), this,
+			       [this, id, isLocked]() { c_->setSliceLocked(id, !isLocked); });
+		QAction *delA = menu.addAction(QStringLiteral("Delete"), this, [this, id]() { c_->deleteSlice(id); });
+		delA->setEnabled(!isLocked);
 	} else if (it) {
 		QString id = it->data(0, RoleId).toString();
 		c_->select(id, QString());
 		menu.addAction(QStringLiteral("Add Slice"), this, &MappingEditor::addSliceToSelected);
+		menu.addAction(QStringLiteral("Lock All Slices"), this,
+			       [this, id]() { c_->setDisplayLocked(id, true); });
+		menu.addAction(QStringLiteral("Unlock All Slices"), this,
+			       [this, id]() { c_->setDisplayLocked(id, false); });
 		QAction *fs = menu.addAction(c_->outputMode(id) == OutputMode::Fullscreen
 						     ? QStringLiteral("Stop Fullscreen")
 						     : QStringLiteral("Start Fullscreen"),

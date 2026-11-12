@@ -469,6 +469,7 @@ QString Controller::duplicateSlice(const QString &sliceId)
 	int i = d->sliceIndex(sliceId);
 	Slice s = d->slices[(size_t)i];
 	s.id = newId();
+	s.locked = false; /* the copy is meant to be adjusted */
 	s.name = s.name + QStringLiteral(" copy");
 	s.color = sliceColorForIndex(totalSlices(doc_));
 	s.dst.x += 20;
@@ -479,11 +480,41 @@ QString Controller::duplicateSlice(const QString &sliceId)
 	return s.id;
 }
 
+bool Controller::isSliceLocked(const QString &sliceId) const
+{
+	const Slice *s = doc_.slice(sliceId);
+	return s && s->locked;
+}
+
+void Controller::setSliceLocked(const QString &sliceId, bool locked)
+{
+	Slice *s = doc_.slice(sliceId);
+	if (!s || s->locked == locked)
+		return;
+	s->locked = locked;
+	changed(Change::Structure);
+}
+
+void Controller::setDisplayLocked(const QString &displayId, bool locked)
+{
+	DisplayMapping *d = doc_.display(displayId);
+	if (!d)
+		return;
+	bool any = false;
+	for (Slice &s : d->slices)
+		if (s.locked != locked) {
+			s.locked = locked;
+			any = true;
+		}
+	if (any)
+		changed(Change::Structure);
+}
+
 void Controller::deleteSlice(const QString &sliceId)
 {
 	DisplayMapping *d = doc_.displayForSlice(sliceId);
-	if (!d)
-		return;
+	if (!d || isSliceLocked(sliceId))
+		return; /* locked slices can't be deleted */
 	int i = d->sliceIndex(sliceId);
 	d->slices.erase(d->slices.begin() + i);
 	QString next;
@@ -515,7 +546,7 @@ void Controller::setSliceEnabled(const QString &sliceId, bool enabled)
 void Controller::setSliceSrc(const QString &sliceId, const IRect &r)
 {
 	Slice *s = doc_.slice(sliceId);
-	if (!s || r.empty() || s->src == r)
+	if (!s || s->locked || r.empty() || s->src == r)
 		return;
 	s->src = r;
 	changed(Change::Geometry);
@@ -524,7 +555,7 @@ void Controller::setSliceSrc(const QString &sliceId, const IRect &r)
 void Controller::setSliceDst(const QString &sliceId, const IRect &r)
 {
 	Slice *s = doc_.slice(sliceId);
-	if (!s || r.empty() || s->dst == r)
+	if (!s || s->locked || r.empty() || s->dst == r)
 		return;
 	s->dst = r;
 	changed(Change::Geometry);
@@ -538,6 +569,8 @@ void Controller::moveSlice(const QString &sliceId, const QString &toDisplayId, i
 		return;
 	int i = from->sliceIndex(sliceId);
 	Slice s = from->slices[(size_t)i];
+	if (from != to && s.locked)
+		return; /* locked: may be reordered, not moved to another display */
 	if (from == to) {
 		index = std::clamp(index, 0, (int)to->slices.size() - 1);
 		if (index == i)

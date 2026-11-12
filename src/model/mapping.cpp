@@ -130,6 +130,7 @@ QJsonObject MappingDocument::toJson() const
 				{"src", rectToJson(s.src)},
 				{"dst", rectToJson(s.dst)},
 				{"enabled", s.enabled},
+				{"locked", s.locked},
 			});
 		}
 		QJsonObject ident{
@@ -194,6 +195,7 @@ MappingDocument MappingDocument::fromJson(const QJsonObject &obj)
 			s.src = rectFromJson(so.value("src"));
 			s.dst = rectFromJson(so.value("dst"));
 			s.enabled = so.value("enabled").toBool(true);
+			s.locked = so.value("locked").toBool(false);
 			d.slices.push_back(s);
 		}
 		doc.displays.push_back(std::move(d));

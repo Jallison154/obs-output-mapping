@@ -34,6 +34,7 @@ struct Slice {
 	IRect src;
 	IRect dst;
 	bool enabled = true;
+	bool locked = false; /* protects geometry, display and deletion */
 };
 
 enum class DisplayKind {

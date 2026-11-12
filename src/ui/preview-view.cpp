@@ -110,6 +110,7 @@ std::vector<PreviewView::Item> PreviewView::items() const
 		it.color = argb(s.color);
 		it.selected = s.id == selS;
 		it.dim = (kind_ == Kind::Input && d.id != selD) || !s.enabled;
+		it.locked = s.locked;
 		out.push_back(it);
 	};
 
@@ -301,8 +302,13 @@ void PreviewView::refresh()
 		oi.color = it->color;
 		oi.selected = it->selected;
 		oi.dim = it->dim;
+		oi.locked = it->locked;
 		oi.hovered = it->sliceId == hoverSlice_;
-		QString text = QStringLiteral("%1  %2×%3").arg(s->name).arg(it->rect.w).arg(it->rect.h);
+		QString text = QStringLiteral("%1%2  %3×%4")
+				       .arg(it->locked ? QStringLiteral("🔒 ") : QString())
+				       .arg(s->name)
+				       .arg(it->rect.w)
+				       .arg(it->rect.h);
 		oi.labelKey = QStringLiteral("%1|%2|%3|%4")
 				      .arg(text, s->color.name())
 				      .arg(it->selected)
@@ -444,7 +450,7 @@ void PreviewView::drawOverlay(const Overlay &ov, uint32_t cx, uint32_t cy)
 			gfx::drawTexture(tex, std::floor(lx), std::floor(ly), lw, lh);
 		}
 
-		if (it.selected) {
+		if (it.selected && !it.locked) {
 			float hs = 7.0f * d;
 			for (Handle hd : kResizeHandles) {
 				PointD p = handlePos(it.rect, hd);
@@ -520,17 +526,22 @@ void PreviewView::updateHover(const QPointF &p)
 	double tol = 6.0 * devicePixelRatioF() / zoom_;
 	QString hover;
 	Handle h = Handle::None;
+	bool overLocked = false;
 	for (const Item &it : items()) {
-		Handle hh = it.selected ? hitTest(it.rect, p.x(), p.y(), tol)
-					: (it.rect.contains(p.x(), p.y()) ? Handle::Move : Handle::None);
+		Handle hh = (it.selected && !it.locked)
+				    ? hitTest(it.rect, p.x(), p.y(), tol)
+				    : (it.rect.contains(p.x(), p.y()) ? Handle::Move : Handle::None);
 		if (hh != Handle::None) {
 			hover = it.sliceId;
 			h = hh;
+			overLocked = it.locked;
 			break;
 		}
 	}
 	if (spaceDown_)
 		setCursor(Qt::OpenHandCursor);
+	else if (overLocked)
+		setCursor(Qt::ForbiddenCursor);
 	else if (h != Handle::None)
 		setCursor(cursorFor(h));
 	else
@@ -562,12 +573,16 @@ void PreviewView::mousePressEvent(QMouseEvent *e)
 
 	double tol = 6.0 * devicePixelRatioF() / zoom_;
 	for (const Item &it : items()) {
-		Handle h = it.selected ? hitTest(it.rect, p.x(), p.y(), tol)
-				       : (it.rect.contains(p.x(), p.y()) ? Handle::Move : Handle::None);
+		Handle h = (it.selected && !it.locked) ? hitTest(it.rect, p.x(), p.y(), tol)
+						       : (it.rect.contains(p.x(), p.y()) ? Handle::Move : Handle::None);
 		if (h == Handle::None)
 			continue;
 		if (!it.selected)
 			c->select(it.displayId, it.sliceId);
+		if (it.locked) {
+			emit blockedByLock(it.sliceId);
+			return; /* locked: selectable, never moved */
+		}
 		drag_ = h == Handle::Move ? Drag::Move : Drag::Resize;
 		dragHandle_ = h;
 		dragSlice_ = it.sliceId;
@@ -728,6 +743,10 @@ void PreviewView::nudge(int dx, int dy)
 	QString id = c->selectedSlice();
 	if (id.isEmpty())
 		return;
+	if (c->isSliceLocked(id)) {
+		emit blockedByLock(id);
+		return;
+	}
 	IRect r = sliceRect(id);
 	r.x += dx;
 	r.y += dy;
@@ -753,7 +772,9 @@ void PreviewView::keyPressEvent(QKeyEvent *e)
 		return;
 	case Qt::Key_Delete:
 	case Qt::Key_Backspace:
-		if (!c->selectedSlice().isEmpty())
+		if (c->isSliceLocked(c->selectedSlice()))
+			emit blockedByLock(c->selectedSlice());
+		else if (!c->selectedSlice().isEmpty())
 			c->deleteSlice(c->selectedSlice());
 		return;
 	case Qt::Key_Escape:

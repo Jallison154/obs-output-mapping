@@ -118,6 +118,9 @@ private:
 	QLabel *sliceSwatch_ = nullptr;
 	QLineEdit *sliceName_ = nullptr;
 	QCheckBox *sliceEnabled_ = nullptr;
+	QCheckBox *sliceLocked_ = nullptr;
+	QPushButton *fitBtn_ = nullptr, *oneBtn_ = nullptr;
+	QAction *lockSliceAct_ = nullptr;
 	QComboBox *sliceDisplay_ = nullptr;
 	QSpinBox *src_[4] = {};
 	QSpinBox *dst_[4] = {};

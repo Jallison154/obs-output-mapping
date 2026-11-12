@@ -340,6 +340,23 @@ VENDOR_REQ(SetDelay)
 	});
 }
 
+VENDOR_REQ(SetSliceLocked)
+{
+	runBlocking([&]() {
+		QString slice = QString::fromUtf8(obs_data_get_string(req, "sliceId"));
+		QString sliceName = QString::fromUtf8(obs_data_get_string(req, "sliceName"));
+		if (slice.isEmpty())
+			for (const auto &d : Controller::instance()->doc().displays)
+				for (const auto &s : d.slices)
+					if (s.name == sliceName)
+						slice = s.id;
+		if (slice.isEmpty())
+			return setError(res, "unknown slice");
+		Controller::instance()->setSliceLocked(slice, obs_data_get_bool(req, "locked"));
+		setStateJson(res);
+	});
+}
+
 VENDOR_REQ(ListPresets)
 {
 	UNUSED_PARAMETER(req);
@@ -482,6 +499,7 @@ static void registerVendor()
 	REG(CloseEditor);
 	REG(Select);
 	REG(SetDelay);
+	REG(SetSliceLocked);
 	REG(ListPresets);
 	REG(SavePreset);
 	REG(LoadPreset);

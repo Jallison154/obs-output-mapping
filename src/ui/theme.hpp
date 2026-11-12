@@ -54,6 +54,7 @@ QGroupBox { background: #15181E; border: 1px solid #232731; border-radius: 8px; 
 QGroupBox::title { subcontrol-origin: margin; left: 10px; top: 2px; color: #8C94A3; font-size: 10px; font-weight: 700; letter-spacing: 1.2px; }
 QLineEdit, QSpinBox, QComboBox { background: #0E1014; border: 1px solid #2A2E38; border-radius: 4px; padding: 3px 5px; selection-background-color: #FFA62B; selection-color: #101217; }
 QLineEdit:focus, QSpinBox:focus, QComboBox:focus { border-color: #FFA62B; }
+QSpinBox:disabled, QLineEdit:disabled, QComboBox:disabled { color: #5F6675; background: #13151A; border-color: #1F232B; }
 QSpinBox { font-family: Menlo, Consolas, "Cascadia Mono", monospace; font-size: 11px; }
 QComboBox QAbstractItemView { background: #15181E; border: 1px solid #2A2E38; selection-background-color: #2A2416; }
 QPushButton { background: #222631; border: 1px solid #2E3340; border-radius: 5px; padding: 5px 10px; }
