@@ -71,6 +71,11 @@ gs_texture_t *createTextureFromImage(const QImage &img);
  * inside a frame (e.g. a main-rendered callback). */
 QImage readbackDisplay(const RenderDisplay &rd);
 
+/* Output video delay: frames used for a delay at the current OBS frame
+ * rate (0 = live), and that frame rate. */
+int delayFrames(int delayMs);
+double videoFps();
+
 /* Render `draw(cx, cy)` into an offscreen w x h target on the graphics
  * thread during the next frame and return it. Call from any non-graphics
  * thread (typically the UI thread); blocks up to ~3 s. */

@@ -37,6 +37,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
+OBS_MODULE_AUTHOR("Okami Designs")
 
 using namespace om;
 
@@ -328,6 +329,17 @@ VENDOR_REQ(Select)
 	});
 }
 
+VENDOR_REQ(SetDelay)
+{
+	runBlocking([&]() {
+		QString id = resolveDisplay(req);
+		if (id.isEmpty())
+			return setError(res, "unknown display");
+		Controller::instance()->setDisplayDelay(id, (int)obs_data_get_int(req, "delayMs"));
+		setStateJson(res);
+	});
+}
+
 VENDOR_REQ(ListPresets)
 {
 	UNUSED_PARAMETER(req);
@@ -469,6 +481,7 @@ static void registerVendor()
 	REG(OpenEditor);
 	REG(CloseEditor);
 	REG(Select);
+	REG(SetDelay);
 	REG(ListPresets);
 	REG(SavePreset);
 	REG(LoadPreset);
@@ -558,7 +571,13 @@ void obs_module_unload(void)
 	obs_log(LOG_INFO, "plugin unloaded");
 }
 
+const char *obs_module_name(void)
+{
+	return "Output Mapping";
+}
+
 const char *obs_module_description(void)
 {
-	return "Output Mapping: slice the Program canvas onto multiple displays (Resolume-style advanced output).";
+	return "Output Mapping by Okami Designs: slice the Program canvas onto multiple displays "
+	       "(Resolume-style advanced output).";
 }

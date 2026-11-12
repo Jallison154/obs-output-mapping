@@ -17,6 +17,8 @@ the Free Software Foundation; either version 2 of the License, or
 #include <atomic>
 #include <cmath>
 #include <cstring>
+#include <unordered_map>
+#include <vector>
 #include <future>
 
 namespace om::gfx {
@@ -24,6 +26,35 @@ namespace om::gfx {
 static gs_samplerstate_t *g_point = nullptr;
 static gs_samplerstate_t *g_linear = nullptr;
 static gs_vertbuffer_t *g_quad = nullptr;
+
+/* ---------------------------------------------------------------------- */
+/* Per-display video delay (graphics thread only)                          */
+/*                                                                        */
+/* Each delayed display owns a ring of N+1 render targets. Once per OBS   */
+/* frame (main-rendered callback) the display is composed into the next   */
+/* slot; when the ring is full, the oldest slot is exactly N frames old   */
+/* and is what the output shows. All on the GPU.                          */
+
+struct DelayLine {
+	uint32_t w = 0, h = 0;
+	int frames = 0;
+	std::vector<gs_texrender_t *> ring;
+	int head = 0;
+	int filled = 0;
+	int readSlot = -1; /* -1 while the buffer fills */
+	bool failed = false;
+};
+
+static std::unordered_map<std::string, DelayLine> g_delays;
+
+static void destroyLine(DelayLine &l)
+{
+	for (gs_texrender_t *t : l.ring)
+		gs_texrender_destroy(t);
+	l = DelayLine{};
+}
+
+static void delayTick(void *);
 
 void init()
 {
@@ -39,6 +70,8 @@ void init()
 	si.filter = GS_FILTER_LINEAR;
 	g_linear = gs_samplerstate_create(&si);
 
+	obs_add_main_rendered_callback(delayTick, nullptr);
+
 	gs_render_start(true);
 	gs_vertex2f(0.0f, 0.0f);
 	gs_vertex2f(1.0f, 0.0f);
@@ -49,6 +82,10 @@ void init()
 
 void shutdown()
 {
+	obs_remove_main_rendered_callback(delayTick, nullptr);
+	for (auto &kv : g_delays)
+		destroyLine(kv.second);
+	g_delays.clear();
 	gs_samplerstate_destroy(g_point);
 	gs_samplerstate_destroy(g_linear);
 	gs_vertexbuffer_destroy(g_quad);
@@ -179,13 +216,126 @@ void renderDisplay(const RenderDisplay &rd, uint32_t cx, uint32_t cy, bool fit)
 	gs_set_viewport(vx, vy, vw, vh);
 	gs_ortho(0.0f, (float)rd.width, 0.0f, (float)rd.height, -100.0f, 100.0f);
 
-	ProgramFrame pf;
-	if (acquireProgram(pf))
-		drawSlices(pf, rd);
+	if (rd.delayMs > 0) {
+		/* Delayed output: show the frame from N frames ago (black while
+		 * the buffer fills after start or a delay change). */
+		auto it = g_delays.find(rd.id);
+		if (it != g_delays.end() && it->second.readSlot >= 0) {
+			gs_texture_t *tex = gs_texrender_get_texture(it->second.ring[(size_t)it->second.readSlot]);
+			if (tex) {
+				const bool prevSrgb = gs_framebuffer_srgb_enabled();
+				gs_enable_framebuffer_srgb(true);
+				gs_blend_state_push();
+				gs_enable_blending(false);
+				gs_effect_t *effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
+				gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
+				gs_effect_set_texture_srgb(image, tex);
+				gs_effect_set_float(gs_effect_get_param_by_name(effect, "multiplier"), 1.0f);
+				gs_effect_set_next_sampler(image, g_point);
+				while (gs_effect_loop(effect, "Draw"))
+					gs_draw_sprite(tex, 0, (uint32_t)rd.width, (uint32_t)rd.height);
+				gs_blend_state_pop();
+				gs_enable_framebuffer_srgb(prevSrgb);
+			}
+		}
+	} else {
+		ProgramFrame pf;
+		if (acquireProgram(pf))
+			drawSlices(pf, rd);
+	}
 
 	gs_matrix_pop();
 	gs_projection_pop();
 	gs_viewport_pop();
+}
+
+double videoFps()
+{
+	obs_video_info ovi = {};
+	if (!obs_get_video_info(&ovi) || ovi.fps_den == 0)
+		return 0.0;
+	return (double)ovi.fps_num / (double)ovi.fps_den;
+}
+
+int delayFrames(int delayMs)
+{
+	if (delayMs <= 0)
+		return 0;
+	const double fps = videoFps();
+	if (fps <= 0)
+		return 0;
+	return std::max(1, (int)std::lround(delayMs * fps / 1000.0));
+}
+
+static void delayTick(void *)
+{
+	auto st = RenderStore::instance().get();
+
+	/* Drop lines for displays that no longer exist or are now live. */
+	for (auto it = g_delays.begin(); it != g_delays.end();) {
+		auto d = st->displays.find(it->first);
+		if (d == st->displays.end() || d->second.delayMs <= 0) {
+			destroyLine(it->second);
+			it = g_delays.erase(it);
+		} else {
+			++it;
+		}
+	}
+
+	ProgramFrame pf;
+	const bool havePf = acquireProgram(pf);
+
+	for (const auto &kv : st->displays) {
+		const RenderDisplay &rd = kv.second;
+		if (rd.delayMs <= 0 || rd.width <= 0 || rd.height <= 0)
+			continue;
+		const int n = delayFrames(rd.delayMs);
+		if (n <= 0)
+			continue;
+		DelayLine &l = g_delays[kv.first];
+		const uint32_t w = (uint32_t)rd.width, h = (uint32_t)rd.height;
+		if (l.w != w || l.h != h || l.frames != n) {
+			destroyLine(l);
+			l.w = w;
+			l.h = h;
+			l.frames = n;
+			l.ring.resize((size_t)n + 1, nullptr);
+			for (auto &t : l.ring)
+				t = gs_texrender_create(GS_BGRA, GS_ZS_NONE);
+		}
+		if (l.failed)
+			continue;
+
+		gs_texrender_t *tr = l.ring[(size_t)l.head];
+		gs_texrender_reset(tr);
+		if (!gs_texrender_begin_with_color_space(tr, w, h, GS_CS_SRGB)) {
+			/* Out of GPU memory: never show a partial ring. */
+			blog(LOG_ERROR,
+			     "[output-mapping] could not allocate %d frame(s) of delay for %ux%u; delay disabled", n, w,
+			     h);
+			l.failed = true;
+			l.readSlot = -1;
+			continue;
+		}
+		vec4 black;
+		vec4_set(&black, 0.0f, 0.0f, 0.0f, 1.0f);
+		gs_clear(GS_CLEAR_COLOR, &black, 0.0f, 0);
+		gs_projection_push();
+		gs_matrix_push();
+		gs_matrix_identity();
+		gs_ortho(0.0f, (float)w, 0.0f, (float)h, -100.0f, 100.0f);
+		if (havePf)
+			drawSlices(pf, rd);
+		gs_matrix_pop();
+		gs_projection_pop();
+		gs_texrender_end(tr);
+
+		const int size = n + 1;
+		l.filled = std::min(l.filled + 1, size);
+		l.head = (l.head + 1) % size;
+		/* After writing frame t, the next slot holds frame t-N. */
+		l.readSlot = l.filled >= size ? l.head : -1;
+	}
 }
 
 void setCanvasView(const QRectF &cv, int vpX, int vpY, int vpW, int vpH)

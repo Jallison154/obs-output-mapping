@@ -90,6 +90,26 @@
     "detail": ""
   },
   {
+    "check": "Set 500 ms delay on HDMI-2",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "check": "Undelayed HDMI-1 switched to Scene B immediately",
+    "pass": true,
+    "detail": "(202, 180, 200)"
+  },
+  {
+    "check": "Delayed HDMI-2 still shows Scene A 223 ms after the cut",
+    "pass": true,
+    "detail": "(216, 132, 112)"
+  },
+  {
+    "check": "Delayed HDMI-2 shows Scene B after the delay, pixel-exact",
+    "pass": true,
+    "detail": "mismatches=0"
+  },
+  {
     "check": "Save preset",
     "pass": true,
     "detail": "acceptance-A"

@@ -147,6 +147,7 @@ QJsonObject MappingDocument::toJson() const
 			{"width", d.width},
 			{"height", d.height},
 			{"outputWanted", d.outputWanted},
+			{"delayMs", d.delayMs},
 			{"slices", ss},
 		});
 	}
@@ -179,6 +180,7 @@ MappingDocument MappingDocument::fromJson(const QJsonObject &obj)
 		d.width = std::max(1, o.value("width").toInt(1920));
 		d.height = std::max(1, o.value("height").toInt(1080));
 		d.outputWanted = o.value("outputWanted").toBool(false);
+		d.delayMs = std::clamp(o.value("delayMs").toInt(0), 0, kMaxDelayMs);
 		for (const QJsonValue sv : o.value("slices").toArray()) {
 			QJsonObject so = sv.toObject();
 			Slice s;
@@ -235,8 +237,10 @@ std::shared_ptr<const RenderState> buildRenderState(const MappingDocument &doc)
 	auto st = std::make_shared<RenderState>();
 	for (const auto &d : doc.displays) {
 		RenderDisplay rd;
+		rd.id = d.id.toStdString();
 		rd.width = d.width;
 		rd.height = d.height;
+		rd.delayMs = d.delayMs;
 		/* Sidebar index 0 is on top -> draw it last. */
 		for (auto it = d.slices.rbegin(); it != d.slices.rend(); ++it) {
 			if (!it->enabled || it->src.empty() || it->dst.empty())

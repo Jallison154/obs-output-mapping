@@ -24,6 +24,10 @@ Setting up OBS: 3840x1080 canvas, two test-pattern scenes, Fade transition
   [PASS] Delete key removes the selected slice
   [PASS] Undo restores the deleted slice exactly — [1920, 0, 1920, 1080] [200, 100, 1920, 1080]
   [PASS] Redo re-applies, undo brings it back
+  [PASS] Set 500 ms delay on HDMI-2
+  [PASS] Undelayed HDMI-1 switched to Scene B immediately — (202, 180, 200)
+  [PASS] Delayed HDMI-2 still shows Scene A 223 ms after the cut — (216, 132, 112)
+  [PASS] Delayed HDMI-2 shows Scene B after the delay, pixel-exact — mismatches=0
   [PASS] Save preset — acceptance-A
   [PASS] Recall preset restores the saved layout — moved [205, 100, 1920, 1080] -> recalled [200, 100, 1920, 1080]
   [PASS] Recall keeps running outputs on displays the preset still uses — window
@@ -61,5 +65,5 @@ Restarting OBS…
   [PASS] No fullscreen output on any unidentified display — ['Built-in']
   OBS exited cleanly
 
-45/45 checks passed
+49/49 checks passed
 EXIT 0

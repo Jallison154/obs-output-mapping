@@ -11,10 +11,12 @@ the Free Software Foundation; either version 2 of the License, or
 #include "ui/mapping-editor.hpp"
 
 #include "platform/platform.hpp"
+#include "render/compositor.hpp"
 #include "ui/preview-view.hpp"
 #include "ui/theme.hpp"
 
 #include <obs-frontend-api.h>
+#include <plugin-support.h>
 #include <util/config-file.h>
 
 #include <cstring>
@@ -489,6 +491,7 @@ void MappingEditor::buildUi()
 	captureAct_->setToolTip(QStringLiteral("Display/window capture can't see the outputs, so Program can never "
 					       "contain its own output"));
 	optMenu->addSeparator();
+	optMenu->addAction(QStringLiteral("About Output Mapping…"), this, &MappingEditor::showAbout);
 	optMenu->addAction(QStringLiteral("Open Settings Folder"), this, [this]() {
 		QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(c_->configPath()).absolutePath()));
 	});
@@ -579,6 +582,16 @@ void MappingEditor::buildUi()
 	statusRight_->setObjectName("Status");
 	sl->addWidget(statusLeft_, 1);
 	sl->addWidget(statusRight_);
+	auto *credit = new QLabel(
+		QStringLiteral(
+			"<a href='about' style='color:%1;text-decoration:none'>Output Mapping %2 · © 2026 Okami Designs</a>")
+			.arg(theme::kMuted, QString::fromUtf8(PLUGIN_VERSION)),
+		sb);
+	credit->setObjectName("Status");
+	credit->setTextFormat(Qt::RichText);
+	credit->setToolTip(QStringLiteral("About Output Mapping"));
+	connect(credit, &QLabel::linkActivated, this, [this](const QString &) { showAbout(); });
+	sl->addWidget(credit);
 	root->addWidget(sb);
 
 	/* --- wiring --- */
@@ -836,6 +849,21 @@ QWidget *MappingEditor::buildInspector()
 	df->addRow(QStringLiteral("Status"), displayStatus_);
 	df->addRow(QStringLiteral("Pixels"), resLabel_);
 	df->addRow(QStringLiteral("Size"), virtRow_);
+
+	delaySpin_ = new QSpinBox(displayBox_);
+	delaySpin_->setRange(0, kMaxDelayMs);
+	delaySpin_->setSingleStep(10);
+	delaySpin_->setSuffix(QStringLiteral(" ms"));
+	delaySpin_->setSpecialValueText(QStringLiteral("Off (live)"));
+	delaySpin_->setKeyboardTracking(false);
+	delaySpin_->setAlignment(Qt::AlignRight);
+	delaySpin_->setToolTip(QStringLiteral("Delay this output's video, e.g. to line it up with slower displays or "
+					      "delayed audio. Rounded to whole frames."));
+	delayInfo_ = new QLabel(displayBox_);
+	delayInfo_->setObjectName("SectionHint");
+	delayInfo_->setWordWrap(true);
+	df->addRow(QStringLiteral("Delay"), delaySpin_);
+	df->addRow(QString(), delayInfo_);
 	df->addRow(btnGrid);
 	v->addWidget(displayBox_);
 	v->addStretch(1);
@@ -855,6 +883,10 @@ QWidget *MappingEditor::buildInspector()
 	};
 	connect(virtW_, qOverload<int>(&QSpinBox::valueChanged), this, pushVirt);
 	connect(virtH_, qOverload<int>(&QSpinBox::valueChanged), this, pushVirt);
+	connect(delaySpin_, qOverload<int>(&QSpinBox::valueChanged), this, [this](int ms) {
+		if (!updating_)
+			c_->setDisplayDelay(c_->selectedDisplay(), ms);
+	});
 	connect(fullscreenBtn_, &QPushButton::clicked, this, &MappingEditor::startFullscreenSelected);
 	connect(windowBtn_, &QPushButton::clicked, this, &MappingEditor::toggleWindowSelected);
 	connect(snapshotBtn_, &QPushButton::clicked, this, &MappingEditor::snapshotSelected);
@@ -909,7 +941,11 @@ void MappingEditor::rebuildTree()
 		DisplayStatus st = c_->status(d.id);
 		OutputMode m = c_->outputMode(d.id);
 		auto *di = new QTreeWidgetItem(tree_);
-		di->setText(0, QStringLiteral("%1   %2×%3").arg(d.name).arg(d.width).arg(d.height));
+		di->setText(0, QStringLiteral("%1   %2×%3%4")
+				       .arg(d.name)
+				       .arg(d.width)
+				       .arg(d.height)
+				       .arg(d.delayMs > 0 ? QStringLiteral("   ⏱ %1 ms").arg(d.delayMs) : QString()));
 		di->setIcon(0, dotIcon(m == OutputMode::Fullscreen ? QColor(theme::kLive) : statusColor(st, d.kind)));
 		QColor badgeColor;
 		di->setText(1, statusBadge(st, d.kind, m, badgeColor));
@@ -1062,6 +1098,24 @@ void MappingEditor::updateInspector()
 		virtH_->setValue(d->height);
 		resLabel_->setText(QStringLiteral("%1 × %2").arg(d->width).arg(d->height));
 
+		delaySpin_->setValue(d->delayMs);
+		if (d->delayMs <= 0) {
+			delayInfo_->setText(QString());
+			delayInfo_->setVisible(false);
+		} else {
+			const int frames = gfx::delayFrames(d->delayMs);
+			const double fps = gfx::videoFps();
+			const double mb = (double)(frames + 1) * d->width * d->height * 4.0 / (1024.0 * 1024.0);
+			delayInfo_->setText(
+				QStringLiteral("%1 frame(s) at %2 fps (%3 ms actual) · about %4 MB of GPU memory. "
+					       "Previews stay live; the output and snapshots are delayed.")
+					.arg(frames)
+					.arg(fps, 0, 'f', fps == std::floor(fps) ? 0 : 2)
+					.arg(fps > 0 ? qRound(frames * 1000.0 / fps) : 0)
+					.arg(qRound(mb)));
+			delayInfo_->setVisible(true);
+		}
+
 		OutputMode m = c_->outputMode(d->id);
 		if (m == OutputMode::Fullscreen) {
 			fullscreenBtn_->setText(QStringLiteral("■ Stop Fullscreen"));
@@ -1129,6 +1183,11 @@ void MappingEditor::updateHeaders()
 			live = QStringLiteral("  <span style='color:%1'>● LIVE</span>").arg(theme::kLive);
 		else if (m == OutputMode::Window)
 			live = QStringLiteral("  <span style='color:%1'>◻ window</span>").arg(theme::kAccent);
+		if (d->delayMs > 0)
+			live += QStringLiteral(
+					"  <span style='color:%1'>⏱ output delayed %2 ms · preview is live</span>")
+					.arg(theme::kWarn)
+					.arg(d->delayMs);
 		outSub_->setText(QStringLiteral("%1 · %2 × %3 px%4")
 					 .arg(d->name.toHtmlEscaped())
 					 .arg(d->width)
@@ -1387,6 +1446,23 @@ void MappingEditor::pushDstFromFields(bool widthChanged, bool heightChanged)
 	if (lockAct_->isChecked() && (widthChanged || heightChanged))
 		r = applySizeEdit(s->dst, r.w, r.h, widthChanged, true);
 	c_->setSliceDst(s->id, r);
+}
+
+void MappingEditor::showAbout()
+{
+	QMessageBox box(this);
+	box.setWindowTitle(QStringLiteral("About Output Mapping"));
+	box.setTextFormat(Qt::RichText);
+	box.setText(QStringLiteral("<h3 style='margin:0'>Output Mapping %1</h3>"
+				   "<p>Slice the OBS Program canvas onto multiple displays.</p>"
+				   "<p><b>© 2026 Okami Designs</b></p>")
+			    .arg(QString::fromUtf8(PLUGIN_VERSION)));
+	box.setInformativeText(QStringLiteral(
+		"Released under the GNU General Public License v2.0 or later.<br>"
+		"<a href='https://github.com/Jallison154/obs-output-mapping'>github.com/Jallison154/obs-output-mapping</a>"));
+	box.setTextInteractionFlags(Qt::TextBrowserInteraction);
+	box.setStandardButtons(QMessageBox::Ok);
+	box.exec();
 }
 
 QImage MappingEditor::captureImage()

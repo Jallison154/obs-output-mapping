@@ -73,6 +73,7 @@ public:
 	void renameDisplay(const QString &id, const QString &name);
 	void assignScreen(const QString &displayId, int screenIndex); /* -1 = make virtual */
 	void setVirtualSize(const QString &id, int w, int h);
+	void setDisplayDelay(const QString &id, int delayMs);
 	void moveDisplay(const QString &id, int newIndex);
 
 	/* -- slice mutations -- */

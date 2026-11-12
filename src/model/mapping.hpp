@@ -51,6 +51,7 @@ struct DisplayMapping {
 	int width = 1920; /* physical display pixels (last known for Physical) */
 	int height = 1080;
 	bool outputWanted = false; /* fullscreen was running: resume when the exact display is present */
+	int delayMs = 0;           /* video delay for this output (0 = live), see kMaxDelayMs */
 	std::vector<Slice> slices;
 
 	int sliceIndex(const QString &sliceId) const;
@@ -74,6 +75,8 @@ struct MappingDocument {
 	static MappingDocument fromJson(const QJsonObject &obj);
 };
 
+static constexpr int kMaxDelayMs = 1000;
+
 QColor sliceColorForIndex(int i);
 QString newId();
 
@@ -86,7 +89,9 @@ struct RenderSlice {
 };
 
 struct RenderDisplay {
+	std::string id;
 	int width = 0, height = 0;
+	int delayMs = 0;
 	std::vector<RenderSlice> slices; /* bottom-most first (draw order) */
 };
 

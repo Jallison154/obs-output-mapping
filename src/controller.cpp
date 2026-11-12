@@ -407,6 +407,17 @@ void Controller::setVirtualSize(const QString &id, int w, int h)
 	changed(Change::Geometry);
 }
 
+void Controller::setDisplayDelay(const QString &id, int delayMs)
+{
+	DisplayMapping *d = doc_.display(id);
+	delayMs = std::clamp(delayMs, 0, kMaxDelayMs);
+	if (!d || d->delayMs == delayMs)
+		return;
+	d->delayMs = delayMs;
+	blog(LOG_INFO, "[output-mapping] '%s' delay set to %d ms", qPrintable(d->name), delayMs);
+	changed(Change::Structure); /* sidebar shows the delay badge */
+}
+
 void Controller::moveDisplay(const QString &id, int newIndex)
 {
 	int i = doc_.displayIndex(id);

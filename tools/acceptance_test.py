@@ -337,6 +337,34 @@ def phase_mapping(ws, work, fullscreen_builtin):
     check("Redo re-applies, undo brings it back", gone and any(
         s["name"] == "Slice 2" for d in state(ws)["displays"] for s in d["slices"]))
 
+    # Per-output video delay: 500 ms on HDMI-2 only, verified with a hard cut.
+    ws.call("SetCurrentSceneTransition", {"transitionName": "Cut"})
+    ws.call("SetCurrentProgramScene", {"sceneName": "Scene A"})
+    r = ws.vendor("SetDelay", {"displayName": "HDMI-2", "delayMs": 500})
+    check("Set 500 ms delay on HDMI-2", r.get("ok") and disp(r["state"], "HDMI-2")["delayMs"] == 500)
+    time.sleep(1.5)  # buffer fills (one delay period) and shows Scene A
+    ws.call("SetCurrentProgramScene", {"sceneName": "Scene B"})
+    t0 = time.time()
+    time.sleep(0.15)
+    a = snapshot(ws, "HDMI-1", os.path.join(work, "delay_hdmi1_early.ppm"))
+    b = snapshot(ws, "HDMI-2", os.path.join(work, "delay_hdmi2_early.ppm"))
+    early = time.time() - t0
+    tag = lambda path, x, y, sx, sy: pixel(path, x, y)[2]
+    check("Undelayed HDMI-1 switched to Scene B immediately",
+          pixel(a, 10, 10) == pattern_pixel(110, 60, TAG_B), f"{pixel(a, 10, 10)}")
+    check("Delayed HDMI-2 still shows Scene A %.0f ms after the cut" % (early * 1000),
+          pixel(b, 400, 400) == pattern_pixel(1920 + 200, 300, TAG_A), f"{pixel(b, 400, 400)}")
+    time.sleep(0.8)
+    b = snapshot(ws, "HDMI-2", os.path.join(work, "delay_hdmi2_late.ppm"))
+    r = compare(b, expect_crop(1920, 0, 200, 100, TAG_B), step=4)
+    check("Delayed HDMI-2 shows Scene B after the delay, pixel-exact", r[0] == 0, f"mismatches={r[0]}")
+    ws.vendor("SetDelay", {"displayName": "HDMI-2", "delayMs": 0})
+    ws.call("SetCurrentProgramScene", {"sceneName": "Scene A"})  # still a Cut: instant
+    time.sleep(0.3)
+    ws.call("SetCurrentSceneTransition", {"transitionName": "Fade"})
+    ws.call("SetCurrentSceneTransitionDuration", {"transitionDuration": 1500})
+    time.sleep(0.5)
+
     # Layout presets: save, change, recall (running output must stay up).
     r = ws.vendor("SavePreset", {"name": "acceptance-A"})
     lp = ws.vendor("ListPresets")

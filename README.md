@@ -59,6 +59,13 @@ is the place they would go).
     bottom). *Auto* (default) stacks them when the Program canvas is wider
     than 2:1, which on 3840×1080 more than doubles each preview's size. The
     choice is remembered.
+  - **Delay** (per display, 0–1000 ms): delays that output's video, e.g. to
+    line up displays with different processing latency or to match delayed
+    audio. Rounded to whole frames; the editor shows the frame count and GPU
+    memory used (1080p ≈ 8 MB per frame). Frames are buffered on the GPU,
+    and the output is black for one delay period after starting or changing
+    it. Previews stay live while you edit; the output and snapshots are
+    delayed. Audio isn't delayed (use OBS's per-source Sync Offset).
   - **Presets ▾**: save the whole layout (displays, slices, positions)
     under a name and recall it with one click. Recall is live-safe: running
     outputs stay up if the preset still uses their display, the others stop,
@@ -307,6 +314,7 @@ Vendor name `output-mapping`, called via `CallVendorRequest`:
 | `StartAll` / `StopAll` | – | All exactly identified displays / all outputs |
 | `Undo` / `Redo` | – | Same as the editor buttons |
 | `ListPresets` / `SavePreset` / `LoadPreset` / `DeletePreset` | `{name}` | Layout presets, e.g. recall from a Stream Deck |
+| `SetDelay` | `{displayName, delayMs}` | Per-output video delay (0 = live) |
 | `Snapshot` | `{displayName, path}` | Render exactly what the display receives to `.png` / `.ppm` |
 | `OpenEditor` / `CloseEditor` / `Select` | … | Editor control |
 | `EditorDrag` / `EditorKey` | … | Automation only: needs `OUTPUT_MAPPING_AUTOMATION=1`. Feeds synthetic mouse and keyboard events to the real editor handlers. |
@@ -331,5 +339,10 @@ See [VERIFICATION.md](VERIFICATION.md) for exactly what was verified on
 which setup, and what still needs testing with real hardware.
 
 ## License
+
+The editor's footer and *Options ▸ About Output Mapping* show the version
+and copyright. OBS's own Plugin Manager also lists the plugin under its name
+and version (from `data/manifest.json`; keep its `version` in step with
+`buildspec.json`).
 
 Copyright © 2026 Okami Designs. Released under the GNU General Public License v2.0 or later (see [LICENSE](LICENSE)), as required for plugins linking libobs.

@@ -79,6 +79,7 @@ private:
 	void applyLayout(); /* side by side vs. stacked previews */
 	void populatePresetsMenu(QMenu *m);
 	void updatePresetsButton();
+	void showAbout();
 
 	void onTreeSelection();
 	void onTreeItemChanged(QTreeWidgetItem *item, int column);
@@ -131,6 +132,8 @@ private:
 	QWidget *virtRow_ = nullptr;
 	QSpinBox *virtW_ = nullptr, *virtH_ = nullptr;
 	QLabel *resLabel_ = nullptr;
+	QSpinBox *delaySpin_ = nullptr;
+	QLabel *delayInfo_ = nullptr;
 	QPushButton *fullscreenBtn_ = nullptr, *windowBtn_ = nullptr, *snapshotBtn_ = nullptr,
 		    *removeDisplayBtn_ = nullptr;
 	QLabel *noSelection_ = nullptr;
