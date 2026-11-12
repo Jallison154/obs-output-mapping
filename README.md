@@ -55,6 +55,10 @@ is the place they would go).
     Snapping to canvas edges, the centre and other slices (hold Alt/⌥ to
     bypass). Arrow-key nudge (Shift ×10). Optional aspect-ratio lock (hold
     Shift while resizing to toggle it temporarily).
+  - **Layout ▾**: show the two previews side by side or stacked (top /
+    bottom). *Auto* (default) stacks them when the Program canvas is wider
+    than 2:1, which on 3840×1080 more than doubles each preview's size. The
+    choice is remembered.
   - **Undo / Redo** (Ctrl+Z / Ctrl+Y, ⌘Z / ⇧⌘Z) for every edit; a drag or
     a burst of nudges is one step.
   - The *new slices → Display* chip shows where a newly drawn slice will

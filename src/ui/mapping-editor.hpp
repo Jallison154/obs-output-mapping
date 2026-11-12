@@ -25,6 +25,7 @@ class QLineEdit;
 class QMenu;
 class QPushButton;
 class QSpinBox;
+class QSplitter;
 class QStackedWidget;
 class QToolButton;
 
@@ -75,6 +76,7 @@ private:
 	void updateHeaders();
 	void updateActions();
 	void updateStatusBar();
+	void applyLayout(); /* side by side vs. stacked previews */
 
 	void onTreeSelection();
 	void onTreeItemChanged(QTreeWidgetItem *item, int column);
@@ -103,6 +105,9 @@ private:
 	QAction *undoAct_ = nullptr, *redoAct_ = nullptr;
 	QAction *fitAct_ = nullptr, *oneAct_ = nullptr, *snapAct_ = nullptr, *lockAct_ = nullptr;
 	QAction *restoreAct_ = nullptr, *captureAct_ = nullptr;
+	QSplitter *previews_ = nullptr;
+	QToolButton *layoutBtn_ = nullptr;
+	QString layoutMode_ = QStringLiteral("auto"); /* auto | side | stacked */
 
 	/* slice inspector (shown first: it is what you edit most) */
 	QGroupBox *sliceBox_ = nullptr;

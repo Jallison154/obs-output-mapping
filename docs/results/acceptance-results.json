@@ -97,12 +97,12 @@
   {
     "check": "Mid-transition HDMI-1 is a blend of Scene A and Scene B",
     "pass": true,
-    "detail": "B=121 (A=40, B=200)"
+    "detail": "B=123 (A=40, B=200)"
   },
   {
     "check": "Mid-transition HDMI-2 is a blend of Scene A and Scene B",
     "pass": true,
-    "detail": "B=61 (A=112, B=16)"
+    "detail": "B=60 (A=112, B=16)"
   },
   {
     "check": "After transition HDMI-1 follows Program (Scene B)",

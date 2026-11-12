@@ -15,12 +15,16 @@ the Free Software Foundation; either version 2 of the License, or
 #include "ui/theme.hpp"
 
 #include <obs-frontend-api.h>
+#include <util/config-file.h>
+
+#include <cstring>
 
 #include <QApplication>
 #include <QCheckBox>
 #include <QCloseEvent>
 #include <QComboBox>
 #include <QDesktopServices>
+#include <QActionGroup>
 #include <QDropEvent>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -229,6 +233,7 @@ MappingEditor::MappingEditor(QWidget *parent) : QDialog(parent), c_(Controller::
 	connect(c_, &Controller::programSizeChanged, this, [this]() {
 		updateHeaders();
 		updateStatusBar();
+		applyLayout(); /* Auto may flip when the canvas aspect changes */
 	});
 	connect(c_, &Controller::undoStateChanged, this, &MappingEditor::updateActions);
 
@@ -238,9 +243,32 @@ MappingEditor::MappingEditor(QWidget *parent) : QDialog(parent), c_(Controller::
 	updateHeaders();
 	updateActions();
 	updateStatusBar();
+	applyLayout();
 }
 
 MappingEditor::~MappingEditor() = default;
+
+void MappingEditor::applyLayout()
+{
+	int pw = 0, ph = 0;
+	c_->programSize(pw, ph);
+	bool stacked = layoutMode_ == QLatin1String("stacked");
+	if (layoutMode_ == QLatin1String("auto"))
+		stacked = ph > 0 && pw > 2 * ph; /* wider than 2:1 */
+
+	const QString label = layoutMode_ == QLatin1String("auto")
+				      ? QStringLiteral("Layout: Auto (%1) ▾").arg(stacked ? "Stacked" : "Side by Side")
+				      : QStringLiteral("Layout: %1 ▾").arg(stacked ? "Stacked" : "Side by Side");
+	layoutBtn_->setText(label);
+
+	const Qt::Orientation want = stacked ? Qt::Vertical : Qt::Horizontal;
+	if (previews_->orientation() != want) {
+		previews_->setOrientation(want);
+		const int total = stacked ? previews_->height() : previews_->width();
+		previews_->setSizes({std::max(1, total / 2), std::max(1, total / 2)});
+		/* Previews refit themselves on resize while in auto-fit. */
+	}
+}
 
 void MappingEditor::buildUi()
 {
@@ -293,6 +321,45 @@ void MappingEditor::buildUi()
 	lockAct_ = tb->addAction(QStringLiteral("Lock Aspect"));
 	lockAct_->setCheckable(true);
 	lockAct_->setToolTip(QStringLiteral("Keep aspect ratio while resizing (hold Shift to toggle temporarily)"));
+	tb->addSeparator();
+
+	/* Layout of the two previews. Wide canvases (e.g. 3840x1080) get much
+	 * more room per preview when stacked. */
+	if (config_t *cfg = obs_frontend_get_user_config()) {
+		const char *mode = config_get_string(cfg, "OutputMapping", "PreviewLayout");
+		if (mode && (!strcmp(mode, "side") || !strcmp(mode, "stacked") || !strcmp(mode, "auto")))
+			layoutMode_ = QString::fromLatin1(mode);
+	}
+	layoutBtn_ = new QToolButton(tb);
+	layoutBtn_->setObjectName("MenuButton");
+	layoutBtn_->setPopupMode(QToolButton::InstantPopup);
+	layoutBtn_->setToolTip(QStringLiteral("Show Input Selection and Output Placement side by side or stacked"));
+	auto *layoutMenu = new QMenu(layoutBtn_);
+	auto *layoutGroup = new QActionGroup(layoutMenu);
+	struct LayoutChoice {
+		const char *mode;
+		const char *label;
+	};
+	const LayoutChoice choices[] = {{"auto", "Auto (stack wide canvases)"},
+					{"side", "Side by Side"},
+					{"stacked", "Stacked (top / bottom)"}};
+	for (const LayoutChoice &ch : choices) {
+		QAction *a = layoutMenu->addAction(QString::fromUtf8(ch.label));
+		a->setCheckable(true);
+		a->setChecked(layoutMode_ == QLatin1String(ch.mode));
+		layoutGroup->addAction(a);
+		const QString mode = QString::fromLatin1(ch.mode);
+		connect(a, &QAction::triggered, this, [this, mode]() {
+			layoutMode_ = mode;
+			if (config_t *cfg = obs_frontend_get_user_config()) {
+				config_set_string(cfg, "OutputMapping", "PreviewLayout", mode.toUtf8().constData());
+				config_save_safe(cfg, "tmp", nullptr);
+			}
+			applyLayout();
+		});
+	}
+	layoutBtn_->setMenu(layoutMenu);
+	tb->addWidget(layoutBtn_);
 
 	auto *spacer = new QWidget(tb);
 	spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -367,7 +434,8 @@ void MappingEditor::buildUi()
 	side->setStretchFactor(1, 3);
 	side->setMinimumWidth(420);
 
-	auto *previews = new QSplitter(Qt::Horizontal, body);
+	previews_ = new QSplitter(Qt::Horizontal, body);
+	auto *previews = previews_;
 	previews->setChildrenCollapsible(false);
 	input_ = new PreviewView(PreviewView::Kind::Input);
 	output_ = new PreviewView(PreviewView::Kind::Output);
