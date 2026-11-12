@@ -31,6 +31,10 @@ target_compile_options(
   PRIVATE $<$<C_COMPILER_ID:Clang,AppleClang>:-Wno-quoted-include-in-framework-header -Wno-comma>
 )
 set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES AUTOMOC ON AUTOUIC ON AUTORCC ON CXX_STANDARD 17)
+# Don't let AUTOMOC run a bare `clang++ -dM -E` to collect predefines: inside
+# Xcode 26's script-phase environment that call fails with "conflicting
+# deployment targets". moc does not need compiler predefines for this code.
+set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES AUTOMOC_COMPILER_PREDEFINES OFF)
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
 target_sources(
