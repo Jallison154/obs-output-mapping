@@ -24,22 +24,22 @@ the Free Software Foundation; either version 2 of the License, or
 namespace om {
 
 struct DisplayIdentity {
-	std::string uuid;     /* OS stable id (macOS: CGDisplayCreateUUIDFromDisplayID) */
-	uint32_t vendor = 0;  /* EDID vendor id (0 = unknown)  */
-	uint32_t model = 0;   /* EDID product id (0 = unknown) */
-	uint32_t serial = 0;  /* EDID serial (0 = unknown / not reported) */
-	std::string name;     /* human readable, e.g. "DELL U2720Q" */
+	std::string uuid;    /* OS stable id (macOS: CGDisplayCreateUUIDFromDisplayID) */
+	uint32_t vendor = 0; /* EDID vendor id (0 = unknown)  */
+	uint32_t model = 0;  /* EDID product id (0 = unknown) */
+	uint32_t serial = 0; /* EDID serial (0 = unknown / not reported) */
+	std::string name;    /* human readable, e.g. "DELL U2720Q" */
 
 	bool empty() const { return uuid.empty() && vendor == 0 && model == 0 && name.empty(); }
 };
 
 enum class MatchStatus {
-	Connected,        /* exact OS identity match                          */
-	ConnectedSerial,  /* OS id changed (e.g. other port) but unique EDID
+	Connected,       /* exact OS identity match                          */
+	ConnectedSerial, /* OS id changed (e.g. other port) but unique EDID
 			     vendor+model+serial match – same physical unit     */
-	Ambiguous,        /* plausible candidates but not provably the same  */
-	Disconnected,     /* nothing plausible connected                     */
-	Unassigned,       /* mapping has no physical identity                */
+	Ambiguous,       /* plausible candidates but not provably the same  */
+	Disconnected,    /* nothing plausible connected                     */
+	Unassigned,      /* mapping has no physical identity                */
 };
 
 inline bool isConnected(MatchStatus s)

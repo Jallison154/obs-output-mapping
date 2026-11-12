@@ -38,8 +38,10 @@ std::vector<ScreenInfo> enumerateScreens()
 		QString label = qs->manufacturer() + " " + qs->model();
 		si.name = label.trimmed().isEmpty() ? qs->name() : label.trimmed();
 		/* Qt has no stable OS id; derive one from connector name + EDID text. */
-		QByteArray key = (qs->name() + "|" + qs->manufacturer() + "|" + qs->model() + "|" + qs->serialNumber()).toUtf8();
-		si.identity.uuid = "qt:" + QCryptographicHash::hash(key, QCryptographicHash::Sha1).toHex().toStdString();
+		QByteArray key =
+			(qs->name() + "|" + qs->manufacturer() + "|" + qs->model() + "|" + qs->serialNumber()).toUtf8();
+		si.identity.uuid =
+			"qt:" + QCryptographicHash::hash(key, QCryptographicHash::Sha1).toHex().toStdString();
 		si.identity.vendor = (uint32_t)qHash(qs->manufacturer());
 		si.identity.model = (uint32_t)qHash(qs->model());
 		si.identity.serial = qs->serialNumber().isEmpty() ? 0u : (uint32_t)qHash(qs->serialNumber());

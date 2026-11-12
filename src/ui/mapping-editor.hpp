@@ -128,7 +128,8 @@ private:
 	QWidget *virtRow_ = nullptr;
 	QSpinBox *virtW_ = nullptr, *virtH_ = nullptr;
 	QLabel *resLabel_ = nullptr;
-	QPushButton *fullscreenBtn_ = nullptr, *windowBtn_ = nullptr, *snapshotBtn_ = nullptr, *removeDisplayBtn_ = nullptr;
+	QPushButton *fullscreenBtn_ = nullptr, *windowBtn_ = nullptr, *snapshotBtn_ = nullptr,
+		    *removeDisplayBtn_ = nullptr;
 	QLabel *noSelection_ = nullptr;
 
 	bool updating_ = false;

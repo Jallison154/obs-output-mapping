@@ -291,7 +291,8 @@ void MappingEditor::buildUi()
 	tb->addWidget(addDisplayBtn_);
 
 	addSliceAct_ = tb->addAction(QStringLiteral("＋ Slice"), this, &MappingEditor::addSliceToSelected);
-	addSliceAct_->setToolTip(QStringLiteral("Add a slice to the selected display (or just drag on Input Selection)"));
+	addSliceAct_->setToolTip(
+		QStringLiteral("Add a slice to the selected display (or just drag on Input Selection)"));
 	tb->addSeparator();
 
 	undoAct_ = tb->addAction(QStringLiteral("Undo"), this, [this]() { c_->undo(); });
@@ -304,20 +305,23 @@ void MappingEditor::buildUi()
 		QStringLiteral("Redo (%1)").arg(QKeySequence(QKeySequence::Redo).toString(QKeySequence::NativeText)));
 	tb->addSeparator();
 
-	dupAct_ = tb->addAction(QStringLiteral("Duplicate"), this, [this]() { c_->duplicateSlice(c_->selectedSlice()); });
+	dupAct_ =
+		tb->addAction(QStringLiteral("Duplicate"), this, [this]() { c_->duplicateSlice(c_->selectedSlice()); });
 	dupAct_->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
 	delAct_ = tb->addAction(QStringLiteral("Delete"), this, [this]() { c_->deleteSlice(c_->selectedSlice()); });
 	tb->addSeparator();
 	fitAct_ = tb->addAction(QStringLiteral("Fit to Display"), this,
 				[this]() { c_->fitSliceToDisplay(c_->selectedSlice()); });
 	fitAct_->setToolTip(QStringLiteral("Scale the output to fill the display, keeping the source's aspect ratio"));
-	oneAct_ = tb->addAction(QStringLiteral("1:1 Pixels"), this, [this]() { c_->sliceOneToOne(c_->selectedSlice()); });
+	oneAct_ =
+		tb->addAction(QStringLiteral("1:1 Pixels"), this, [this]() { c_->sliceOneToOne(c_->selectedSlice()); });
 	oneAct_->setToolTip(QStringLiteral("Make the output exactly the source size (pixel for pixel)"));
 	tb->addSeparator();
 	snapAct_ = tb->addAction(QStringLiteral("Snap"));
 	snapAct_->setCheckable(true);
 	snapAct_->setChecked(true);
-	snapAct_->setToolTip(QStringLiteral("Snap to edges, centre and other slices (hold %1 to bypass)").arg(altKeyName()));
+	snapAct_->setToolTip(
+		QStringLiteral("Snap to edges, centre and other slices (hold %1 to bypass)").arg(altKeyName()));
 	lockAct_ = tb->addAction(QStringLiteral("Lock Aspect"));
 	lockAct_->setCheckable(true);
 	lockAct_->setToolTip(QStringLiteral("Keep aspect ratio while resizing (hold Shift to toggle temporarily)"));
@@ -392,10 +396,12 @@ void MappingEditor::buildUi()
 	optBtn->setMenu(optMenu);
 	tb->addWidget(optBtn);
 
-	tb->addAction(QStringLiteral("▶ Start All"), this, [this]() { c_->startAll(); })
-		->setToolTip(QStringLiteral("Start fullscreen on every display that is connected and identified"));
-	tb->addAction(QStringLiteral("■ Stop All"), this, [this]() { c_->stopAll(); })
-		->setToolTip(QStringLiteral("Stop every output (fullscreen and windows)"));
+	tb->addAction(QStringLiteral("▶ Start All"), this, [this]() {
+		  c_->startAll();
+	  })->setToolTip(QStringLiteral("Start fullscreen on every display that is connected and identified"));
+	tb->addAction(QStringLiteral("■ Stop All"), this, [this]() {
+		  c_->stopAll();
+	  })->setToolTip(QStringLiteral("Stop every output (fullscreen and windows)"));
 	root->addWidget(tb);
 
 	/* --- body --- */
@@ -568,7 +574,8 @@ QWidget *MappingEditor::buildPreviewPanel(PreviewView *view, QLabel *&title, QLa
 	head->addWidget(mk(QStringLiteral("−"), QStringLiteral("Zoom out (−)"), [view]() { view->zoomBy(0.8); }));
 	head->addWidget(zoomLabel);
 	head->addWidget(mk(QStringLiteral("+"), QStringLiteral("Zoom in (+)"), [view]() { view->zoomBy(1.25); }));
-	head->addWidget(mk(QStringLiteral("100%"), QStringLiteral("Actual pixels (1)"), [view]() { view->zoomActual(); }));
+	head->addWidget(
+		mk(QStringLiteral("100%"), QStringLiteral("Actual pixels (1)"), [view]() { view->zoomActual(); }));
 	head->addWidget(mk(QStringLiteral("Fit"), QStringLiteral("Fit to view (F or double-click)"),
 			   [view]() { view->fitToView(); }));
 	v->addLayout(head);
@@ -818,8 +825,8 @@ void MappingEditor::rebuildTree()
 			si->setIcon(0, dotIcon(s.color, true));
 			const bool oneToOne = s.src.w == s.dst.w && s.src.h == s.dst.h;
 			si->setText(1, !s.enabled ? QStringLiteral("hidden")
-						   : oneToOne ? QStringLiteral("1:1")
-							      : QStringLiteral("scaled"));
+				       : oneToOne ? QStringLiteral("1:1")
+						  : QStringLiteral("scaled"));
 			si->setForeground(1, QColor(theme::kMuted));
 			si->setToolTip(0, QStringLiteral("Source %1,%2 %3×%4  →  Output %5,%6 %7×%8")
 						  .arg(s.src.x)
@@ -832,7 +839,8 @@ void MappingEditor::rebuildTree()
 						  .arg(s.dst.h));
 			si->setData(0, RoleKind, KindSlice);
 			si->setData(0, RoleId, s.id);
-			si->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable | Qt::ItemIsDragEnabled);
+			si->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable |
+				     Qt::ItemIsDragEnabled);
 			if (!s.enabled) {
 				QFont sf = si->font(0);
 				sf.setItalic(true);
@@ -935,8 +943,8 @@ void MappingEditor::updateInspector()
 			text += QStringLiteral("<br><span style='color:%1'>Nothing is shown on another screen. The "
 					       "output resumes when this display is reconnected.</span>")
 					.arg(theme::kMuted);
-		displayStatus_->setText(QStringLiteral("<span style='color:%1'>●</span> %2")
-						.arg(statusColor(st, d->kind).name(), text));
+		displayStatus_->setText(
+			QStringLiteral("<span style='color:%1'>●</span> %2").arg(statusColor(st, d->kind).name(), text));
 
 		const bool isVirtual = d->kind == DisplayKind::Virtual;
 		auto *form = qobject_cast<QFormLayout *>(displayBox_->layout());
@@ -960,15 +968,18 @@ void MappingEditor::updateInspector()
 			const bool ok = !isVirtual && isConnected(st.match) && st.canFullscreen;
 			fullscreenBtn_->setEnabled(ok);
 			if (isVirtual)
-				fullscreenBtn_->setToolTip(QStringLiteral("Virtual displays only open as a window. Pick a "
-									  "physical display under “Output to” to go "
-									  "fullscreen."));
+				fullscreenBtn_->setToolTip(
+					QStringLiteral("Virtual displays only open as a window. Pick a "
+						       "physical display under “Output to” to go "
+						       "fullscreen."));
 			else
-				fullscreenBtn_->setToolTip(ok ? QString() : QStringLiteral("Unavailable: %1").arg(st.text));
+				fullscreenBtn_->setToolTip(ok ? QString()
+							      : QStringLiteral("Unavailable: %1").arg(st.text));
 		}
 		fullscreenBtn_->style()->unpolish(fullscreenBtn_);
 		fullscreenBtn_->style()->polish(fullscreenBtn_);
-		windowBtn_->setText(m == OutputMode::Window ? QStringLiteral("Close Window") : QStringLiteral("Open Window"));
+		windowBtn_->setText(m == OutputMode::Window ? QStringLiteral("Close Window")
+							    : QStringLiteral("Open Window"));
 	}
 
 	if (s) {
@@ -1012,8 +1023,11 @@ void MappingEditor::updateHeaders()
 			live = QStringLiteral("  <span style='color:%1'>● LIVE</span>").arg(theme::kLive);
 		else if (m == OutputMode::Window)
 			live = QStringLiteral("  <span style='color:%1'>◻ window</span>").arg(theme::kAccent);
-		outSub_->setText(
-			QStringLiteral("%1 · %2 × %3 px%4").arg(d->name.toHtmlEscaped()).arg(d->width).arg(d->height).arg(live));
+		outSub_->setText(QStringLiteral("%1 · %2 × %3 px%4")
+					 .arg(d->name.toHtmlEscaped())
+					 .arg(d->width)
+					 .arg(d->height)
+					 .arg(live));
 	} else {
 		outSub_->setText(QStringLiteral("no display selected"));
 	}
@@ -1084,7 +1098,8 @@ void MappingEditor::showTreeMenu(const QPoint &pos)
 		QMenu *to = menu.addMenu(QStringLiteral("Move to Display"));
 		const DisplayMapping *owner = c_->doc().displayForSlice(id);
 		for (const DisplayMapping &d : c_->doc().displays) {
-			QAction *a = to->addAction(d.name, this, [this, id, did = d.id]() { c_->moveSlice(id, did, 0); });
+			QAction *a =
+				to->addAction(d.name, this, [this, id, did = d.id]() { c_->moveSlice(id, did, 0); });
 			a->setEnabled(!owner || owner->id != d.id);
 		}
 		menu.addSeparator();
@@ -1096,8 +1111,9 @@ void MappingEditor::showTreeMenu(const QPoint &pos)
 		QString id = it->data(0, RoleId).toString();
 		c_->select(id, QString());
 		menu.addAction(QStringLiteral("Add Slice"), this, &MappingEditor::addSliceToSelected);
-		QAction *fs = menu.addAction(c_->outputMode(id) == OutputMode::Fullscreen ? QStringLiteral("Stop Fullscreen")
-											   : QStringLiteral("Start Fullscreen"),
+		QAction *fs = menu.addAction(c_->outputMode(id) == OutputMode::Fullscreen
+						     ? QStringLiteral("Stop Fullscreen")
+						     : QStringLiteral("Start Fullscreen"),
 					     this, &MappingEditor::startFullscreenSelected);
 		fs->setEnabled(fullscreenBtn_->isEnabled());
 		menu.addAction(c_->outputMode(id) == OutputMode::Window ? QStringLiteral("Close Window")
@@ -1140,7 +1156,8 @@ void MappingEditor::populateAddDisplayMenu(QMenu *m)
 		m->addAction(label, this, [this, i]() { c_->addPhysicalDisplay(i); });
 	}
 	m->addSeparator();
-	m->addAction(QStringLiteral("Virtual Display for Testing (window only)…"), this, &MappingEditor::addVirtualDisplay);
+	m->addAction(QStringLiteral("Virtual Display for Testing (window only)…"), this,
+		     &MappingEditor::addVirtualDisplay);
 }
 
 void MappingEditor::addVirtualDisplay()

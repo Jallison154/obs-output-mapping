@@ -142,9 +142,8 @@ inline PointD handlePos(const IRect &r, Handle h)
 	}
 }
 
-static constexpr Handle kResizeHandles[] = {Handle::TopLeft,     Handle::Top,    Handle::TopRight,
-					    Handle::Right,       Handle::BottomRight, Handle::Bottom,
-					    Handle::BottomLeft,  Handle::Left};
+static constexpr Handle kResizeHandles[] = {Handle::TopLeft,     Handle::Top,    Handle::TopRight,   Handle::Right,
+					    Handle::BottomRight, Handle::Bottom, Handle::BottomLeft, Handle::Left};
 
 /* Hit test in canvas units. `tol` is the grab radius in canvas units
  * (screen pixels / zoom). Resize handles win over the body. */
@@ -180,8 +179,8 @@ struct SnapTargets {
 };
 
 struct SnapResult {
-	double delta = 0;  /* correction to apply                   */
-	double line = 0;   /* the line snapped to (for guides)      */
+	double delta = 0; /* correction to apply                   */
+	double line = 0;  /* the line snapped to (for guides)      */
 	bool snapped = false;
 };
 

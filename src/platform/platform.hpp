@@ -32,17 +32,17 @@ namespace om {
 /* A display connected right now, as seen by the OS. */
 struct ScreenInfo {
 	DisplayIdentity identity;
-	QString name;           /* e.g. "DELL U2720Q" */
-	QString nativeId;       /* Windows: \\.\DISPLAYn   macOS: CGDirectDisplayID */
-	int pixelW = 0;         /* current mode in physical pixels (= the HDMI signal) */
+	QString name;     /* e.g. "DELL U2720Q" */
+	QString nativeId; /* Windows: \\.\DISPLAYn   macOS: CGDirectDisplayID */
+	int pixelW = 0;   /* current mode in physical pixels (= the HDMI signal) */
 	int pixelH = 0;
-	int backingW = 0;       /* swapchain size a fullscreen window will get */
+	int backingW = 0; /* swapchain size a fullscreen window will get */
 	int backingH = 0;
-	QRect geometry;         /* Qt desktop coordinates (logical) */
+	QRect geometry; /* Qt desktop coordinates (logical) */
 	double dpr = 1.0;
 	bool builtin = false;
 	bool primary = false;
-	bool mirrored = false;  /* duplicated/cloned to other displays by the OS */
+	bool mirrored = false; /* duplicated/cloned to other displays by the OS */
 	QScreen *screen = nullptr;
 
 	/* False when the OS resamples (macOS "looks like" modes): 1:1 is then

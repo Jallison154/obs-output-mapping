@@ -29,8 +29,7 @@ class OutputWindow : public ObsDisplayWidget {
 public:
 	enum class Mode { Fullscreen, Window };
 
-	OutputWindow(const QString &displayId, Mode mode, QScreen *screen, const QString &title, int dispW,
-		     int dispH);
+	OutputWindow(const QString &displayId, Mode mode, QScreen *screen, const QString &title, int dispW, int dispH);
 	~OutputWindow() override;
 
 	Mode mode() const { return mode_; }

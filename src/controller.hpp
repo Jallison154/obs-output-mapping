@@ -27,10 +27,10 @@ enum class OutputMode { None, Fullscreen, Window };
 
 struct DisplayStatus {
 	MatchStatus match = MatchStatus::Unassigned;
-	int screen = -1;              /* index into Controller::screens() when connected */
-	std::vector<int> candidates;  /* ambiguous candidates */
-	QString text;                 /* short human readable status */
-	bool exactPixels = true;      /* backing store == display mode pixels */
+	int screen = -1;             /* index into Controller::screens() when connected */
+	std::vector<int> candidates; /* ambiguous candidates */
+	QString text;                /* short human readable status */
+	bool exactPixels = true;     /* backing store == display mode pixels */
 	bool canFullscreen = false;
 };
 

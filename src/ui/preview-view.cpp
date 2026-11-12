@@ -303,7 +303,11 @@ void PreviewView::refresh()
 		oi.dim = it->dim;
 		oi.hovered = it->sliceId == hoverSlice_;
 		QString text = QStringLiteral("%1  %2×%3").arg(s->name).arg(it->rect.w).arg(it->rect.h);
-		oi.labelKey = QStringLiteral("%1|%2|%3|%4").arg(text, s->color.name()).arg(it->selected).arg(ov.dpr).toStdString();
+		oi.labelKey = QStringLiteral("%1|%2|%3|%4")
+				      .arg(text, s->color.name())
+				      .arg(it->selected)
+				      .arg(ov.dpr)
+				      .toStdString();
 		oi.label = makeLabel(text, s->color, it->selected);
 		ov.items.push_back(std::move(oi));
 	}
@@ -823,7 +827,8 @@ QImage PreviewView::capture()
 	return img;
 }
 
-void PreviewView::simulateDrag(const QPointF &fromCanvas, const QPointF &toCanvas, Qt::KeyboardModifiers mods, int steps)
+void PreviewView::simulateDrag(const QPointF &fromCanvas, const QPointF &toCanvas, Qt::KeyboardModifiers mods,
+			       int steps)
 {
 	auto send = [&](QEvent::Type type, const QPointF &canvas, Qt::MouseButton button, Qt::MouseButtons buttons) {
 		QPointF local = canvasToWidget(canvas);

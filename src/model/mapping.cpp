@@ -151,11 +151,8 @@ QJsonObject MappingDocument::toJson() const
 		});
 	}
 	return QJsonObject{
-		{"format", "obs-output-mapping"},
-		{"version", 1},
-		{"restoreOutputs", restoreOutputs},
-		{"excludeFromCapture", excludeFromCapture},
-		{"displays", ds},
+		{"format", "obs-output-mapping"},           {"version", 1},   {"restoreOutputs", restoreOutputs},
+		{"excludeFromCapture", excludeFromCapture}, {"displays", ds},
 	};
 }
 

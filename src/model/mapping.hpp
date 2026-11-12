@@ -48,7 +48,7 @@ struct DisplayMapping {
 	QString name;
 	DisplayKind kind = DisplayKind::Physical;
 	DisplayIdentity identity;
-	int width = 1920;  /* physical display pixels (last known for Physical) */
+	int width = 1920; /* physical display pixels (last known for Physical) */
 	int height = 1080;
 	bool outputWanted = false; /* fullscreen was running: resume when the exact display is present */
 	std::vector<Slice> slices;

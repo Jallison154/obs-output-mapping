@@ -27,7 +27,6 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QSaveFile>
 #include <QScreen>
 
-
 namespace om {
 
 static Controller *g_controller = nullptr;
@@ -570,8 +569,8 @@ void Controller::replaceDocument(const MappingDocument &doc)
 	selSlice_.clear();
 	changed(Change::Structure);
 	if (!doc_.displays.empty())
-		select(doc_.displays.front().id, doc_.displays.front().slices.empty() ? QString()
-										      : doc_.displays.front().slices.front().id);
+		select(doc_.displays.front().id,
+		       doc_.displays.front().slices.empty() ? QString() : doc_.displays.front().slices.front().id);
 	else
 		emit selectionChanged();
 }
@@ -714,9 +713,10 @@ bool Controller::openWindow(const QString &displayId, QString *error)
 	if (outputs_.value(displayId))
 		stopOutput(displayId, false);
 
-	auto *w = new OutputWindow(displayId, OutputWindow::Mode::Window, nullptr,
-				   QStringLiteral("Output Mapping – %1 (%2×%3)").arg(d->name).arg(d->width).arg(d->height),
-				   d->width, d->height);
+	auto *w = new OutputWindow(
+		displayId, OutputWindow::Mode::Window, nullptr,
+		QStringLiteral("Output Mapping – %1 (%2×%3)").arg(d->name).arg(d->width).arg(d->height), d->width,
+		d->height);
 	connect(w, &OutputWindow::closeRequested, this, [this](const QString &id) { stopOutput(id, true); });
 	outputs_.insert(displayId, w);
 	w->showOutput(optionsFor(nullptr));
@@ -792,7 +792,8 @@ void Controller::verifyOutputs()
 		/* The mapping must still resolve to the same physical display. */
 		DisplayStatus st = status(it.key());
 		const bool identityMoved = !isConnected(st.match) || st.screen < 0 ||
-					   st.screen >= (int)screens_.size() || screens_[(size_t)st.screen].screen != target;
+					   st.screen >= (int)screens_.size() ||
+					   screens_[(size_t)st.screen].screen != target;
 		if (screenGone || identityMoved) {
 			blog(LOG_WARNING, "[output-mapping] output '%s' lost its display (%s); stopping it",
 			     qPrintable(it.key()), screenGone ? "display removed" : "identity changed");
@@ -900,14 +901,14 @@ void Controller::load()
 		jd = QJsonDocument::fromJson(raw, &err);
 		if (err.error == QJsonParseError::NoError && jd.isObject()) {
 			doc_ = MappingDocument::fromJson(jd.object());
-			blog(LOG_INFO, "[output-mapping] loaded %d display mapping(s) from %s", (int)doc_.displays.size(),
-			     qPrintable(path));
+			blog(LOG_INFO, "[output-mapping] loaded %d display mapping(s) from %s",
+			     (int)doc_.displays.size(), qPrintable(path));
 			QFile::remove(path + ".bak");
 			QFile::copy(path, path + ".bak"); /* last known-good copy */
 		} else {
 			/* Never overwrite a file we could not read: set it aside. */
-			QString aside = path + ".unreadable-" +
-					QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss");
+			QString aside =
+				path + ".unreadable-" + QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss");
 			QFile::rename(path, aside);
 			blog(LOG_ERROR, "[output-mapping] could not parse %s (%s); moved it to %s", qPrintable(path),
 			     qPrintable(err.errorString()), qPrintable(aside));

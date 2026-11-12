@@ -120,12 +120,13 @@ static Edid readEdid(const std::wstring &devicePath)
 		if (key != INVALID_HANDLE_VALUE) {
 			BYTE buf[1024];
 			DWORD size = sizeof(buf), type = 0;
-			if (RegQueryValueExW(key, L"EDID", nullptr, &type, buf, &size) == ERROR_SUCCESS && size >= 128 &&
-			    buf[0] == 0x00 && buf[1] == 0xFF && buf[7] == 0x00) {
+			if (RegQueryValueExW(key, L"EDID", nullptr, &type, buf, &size) == ERROR_SUCCESS &&
+			    size >= 128 && buf[0] == 0x00 && buf[1] == 0xFF && buf[7] == 0x00) {
 				out.valid = true;
 				out.vendor = (uint32_t)((buf[8] << 8) | buf[9]);
 				out.product = (uint32_t)(buf[10] | (buf[11] << 8));
-				out.serial = (uint32_t)(buf[12] | (buf[13] << 8) | (buf[14] << 16) | ((uint32_t)buf[15] << 24));
+				out.serial = (uint32_t)(buf[12] | (buf[13] << 8) | (buf[14] << 16) |
+							((uint32_t)buf[15] << 24));
 				/* Detailed descriptors: 0xFF serial string, 0xFC name. */
 				QByteArray serialText;
 				for (int d = 54; d + 18 <= 126; d += 18) {
@@ -143,8 +144,8 @@ static Edid readEdid(const std::wstring &devicePath)
 				}
 				if (out.serial == 0 && !serialText.isEmpty()) {
 					QByteArray h = QCryptographicHash::hash(serialText, QCryptographicHash::Sha1);
-					out.serial = (uint32_t)((uint8_t)h[0] << 24 | (uint8_t)h[1] << 16 | (uint8_t)h[2] << 8 |
-								(uint8_t)h[3]);
+					out.serial = (uint32_t)((uint8_t)h[0] << 24 | (uint8_t)h[1] << 16 |
+								(uint8_t)h[2] << 8 | (uint8_t)h[3]);
 					if (out.serial == 0)
 						out.serial = 1;
 				}
@@ -158,7 +159,8 @@ static Edid readEdid(const std::wstring &devicePath)
 
 static bool isInternal(DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY t)
 {
-	return t == DISPLAYCONFIG_OUTPUT_TECHNOLOGY_INTERNAL || t == DISPLAYCONFIG_OUTPUT_TECHNOLOGY_DISPLAYPORT_EMBEDDED ||
+	return t == DISPLAYCONFIG_OUTPUT_TECHNOLOGY_INTERNAL ||
+	       t == DISPLAYCONFIG_OUTPUT_TECHNOLOGY_DISPLAYPORT_EMBEDDED ||
 	       t == DISPLAYCONFIG_OUTPUT_TECHNOLOGY_UDI_EMBEDDED || t == DISPLAYCONFIG_OUTPUT_TECHNOLOGY_LVDS;
 }
 
@@ -189,7 +191,8 @@ std::vector<ScreenInfo> enumerateScreens()
 	auto qscreenFor = [&](const QString &gdi) -> QScreen * {
 		for (QScreen *qs : qscreens) {
 			MONITORINFOEXW mi;
-			if (monitorInfo(hmonitorFor(qs), mi) && fromWide(mi.szDevice).compare(gdi, Qt::CaseInsensitive) == 0)
+			if (monitorInfo(hmonitorFor(qs), mi) &&
+			    fromWide(mi.szDevice).compare(gdi, Qt::CaseInsensitive) == 0)
 				return qs;
 		}
 		for (QScreen *qs : qscreens)
@@ -284,9 +287,11 @@ std::vector<ScreenInfo> enumerateScreens()
 	for (size_t i = 0; i < out.size(); i++)
 		for (size_t j = i + 1; j < out.size(); j++)
 			if (out[i].name == out[j].name) {
-				out[j].name += QStringLiteral(" (%1)").arg(out[j].nativeId.mid(out[j].nativeId.lastIndexOf('\\') + 1));
+				out[j].name += QStringLiteral(" (%1)").arg(
+					out[j].nativeId.mid(out[j].nativeId.lastIndexOf('\\') + 1));
 				if (!out[i].name.contains('('))
-					out[i].name += QStringLiteral(" (%1)").arg(out[i].nativeId.mid(out[i].nativeId.lastIndexOf('\\') + 1));
+					out[i].name += QStringLiteral(" (%1)").arg(
+						out[i].nativeId.mid(out[i].nativeId.lastIndexOf('\\') + 1));
 			}
 	return out;
 }

@@ -57,7 +57,8 @@ public:
 	QPointF widgetToCanvas(const QPointF &w) const;
 
 	/* Drive the real mouse handlers with synthetic events (automation). */
-	void simulateDrag(const QPointF &fromCanvas, const QPointF &toCanvas, Qt::KeyboardModifiers mods, int steps = 12);
+	void simulateDrag(const QPointF &fromCanvas, const QPointF &toCanvas, Qt::KeyboardModifiers mods,
+			  int steps = 12);
 
 	/* Render this preview (video + editor overlays) offscreen at its
 	 * current pixel size, exactly as drawn on screen. */

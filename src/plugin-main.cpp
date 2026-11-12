@@ -371,7 +371,7 @@ VENDOR_REQ(EditorDrag)
 		if (!e)
 			return setError(res, "no editor");
 		PreviewView *v = QString::fromUtf8(obs_data_get_string(req, "view")) == "output" ? e->outputView()
-												   : e->inputView();
+												 : e->inputView();
 		QPointF from(obs_data_get_double(req, "fromX"), obs_data_get_double(req, "fromY"));
 		QPointF to(obs_data_get_double(req, "toX"), obs_data_get_double(req, "toY"));
 		Qt::KeyboardModifiers mods;
@@ -391,7 +391,7 @@ VENDOR_REQ(EditorKey)
 			return setError(res, "set OUTPUT_MAPPING_AUTOMATION=1 to enable");
 		MappingEditor *e = openEditor();
 		PreviewView *v = QString::fromUtf8(obs_data_get_string(req, "view")) == "output" ? e->outputView()
-												   : e->inputView();
+												 : e->inputView();
 		int key = (int)obs_data_get_int(req, "key");
 		Qt::KeyboardModifiers mods = obs_data_get_bool(req, "shift") ? Qt::ShiftModifier : Qt::NoModifier;
 		QKeyEvent press(QEvent::KeyPress, key, mods);
