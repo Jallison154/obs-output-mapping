@@ -90,6 +90,31 @@
     "detail": ""
   },
   {
+    "check": "Save preset",
+    "pass": true,
+    "detail": "acceptance-A"
+  },
+  {
+    "check": "Recall preset restores the saved layout",
+    "pass": true,
+    "detail": "moved [205, 100, 1920, 1080] -> recalled [200, 100, 1920, 1080]"
+  },
+  {
+    "check": "Recall keeps running outputs on displays the preset still uses",
+    "pass": true,
+    "detail": "window"
+  },
+  {
+    "check": "Recalling a missing preset reports an error",
+    "pass": true,
+    "detail": "Preset \u201cno-such-preset\u201d not found."
+  },
+  {
+    "check": "Delete preset",
+    "pass": true,
+    "detail": ""
+  },
+  {
     "check": "Editor capture saved",
     "pass": true,
     "detail": "3000x1720"

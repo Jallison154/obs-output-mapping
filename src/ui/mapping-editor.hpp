@@ -77,6 +77,8 @@ private:
 	void updateActions();
 	void updateStatusBar();
 	void applyLayout(); /* side by side vs. stacked previews */
+	void populatePresetsMenu(QMenu *m);
+	void updatePresetsButton();
 
 	void onTreeSelection();
 	void onTreeItemChanged(QTreeWidgetItem *item, int column);
@@ -107,6 +109,7 @@ private:
 	QAction *restoreAct_ = nullptr, *captureAct_ = nullptr;
 	QSplitter *previews_ = nullptr;
 	QToolButton *layoutBtn_ = nullptr;
+	QToolButton *presetsBtn_ = nullptr;
 	QString layoutMode_ = QStringLiteral("auto"); /* auto | side | stacked */
 
 	/* slice inspector (shown first: it is what you edit most) */

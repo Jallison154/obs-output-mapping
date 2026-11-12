@@ -24,6 +24,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QCloseEvent>
 #include <QComboBox>
 #include <QDesktopServices>
+#include <QDir>
 #include <QActionGroup>
 #include <QDropEvent>
 #include <QFileDialog>
@@ -236,6 +237,7 @@ MappingEditor::MappingEditor(QWidget *parent) : QDialog(parent), c_(Controller::
 		applyLayout(); /* Auto may flip when the canvas aspect changes */
 	});
 	connect(c_, &Controller::undoStateChanged, this, &MappingEditor::updateActions);
+	connect(c_, &Controller::presetsChanged, this, &MappingEditor::updatePresetsButton);
 
 	rebuildTree();
 	rebuildScreenCombo();
@@ -244,9 +246,102 @@ MappingEditor::MappingEditor(QWidget *parent) : QDialog(parent), c_(Controller::
 	updateActions();
 	updateStatusBar();
 	applyLayout();
+	updatePresetsButton();
 }
 
 MappingEditor::~MappingEditor() = default;
+
+void MappingEditor::updatePresetsButton()
+{
+	const QString cur = c_->currentPreset();
+	if (cur.isEmpty()) {
+		presetsBtn_->setText(QStringLiteral("Presets ▾"));
+		presetsBtn_->setToolTip(
+			QStringLiteral("Save and recall complete layouts (displays, slices, positions)"));
+	} else {
+		presetsBtn_->setText(QStringLiteral("Preset: %1%2 ▾").arg(cur, c_->presetModified() ? " •" : ""));
+		presetsBtn_->setToolTip(c_->presetModified()
+						? QStringLiteral("Changed since “%1” was saved or recalled").arg(cur)
+						: QStringLiteral("Matches the saved preset “%1”").arg(cur));
+	}
+}
+
+void MappingEditor::populatePresetsMenu(QMenu *m)
+{
+	m->clear();
+	m->addAction(QStringLiteral("Save as Preset…"), this, [this]() {
+		bool ok = false;
+		QString name =
+			QInputDialog::getText(this, QStringLiteral("Save Preset"),
+					      QStringLiteral("Save the current displays, slices and positions as:"),
+					      QLineEdit::Normal, c_->currentPreset(), &ok)
+				.trimmed();
+		if (!ok || name.isEmpty())
+			return;
+		if (c_->presetNames().contains(name, Qt::CaseInsensitive) &&
+		    QMessageBox::question(this, QStringLiteral("Save Preset"),
+					  QStringLiteral("Replace the existing preset “%1”?").arg(name)) !=
+			    QMessageBox::Yes)
+			return;
+		QString err;
+		if (!c_->savePreset(name, &err))
+			QMessageBox::warning(this, QStringLiteral("Save Preset"), err);
+	});
+
+	const QStringList names = c_->presetNames();
+	m->addSeparator();
+	QAction *head =
+		m->addAction(names.isEmpty() ? QStringLiteral("No saved presets yet") : QStringLiteral("Recall"));
+	head->setEnabled(false);
+	for (const QString &name : names) {
+		QAction *a = m->addAction(name, this, [this, name]() {
+			QString err;
+			if (!c_->loadPreset(name, &err))
+				QMessageBox::warning(this, QStringLiteral("Recall Preset"), err);
+		});
+		a->setCheckable(true);
+		a->setChecked(name == c_->currentPreset());
+		a->setToolTip(QStringLiteral("Running outputs stay up if this preset still uses their display. "
+					     "Undo restores the previous layout."));
+	}
+
+	m->addSeparator();
+	m->addAction(QStringLiteral("Import Layout File…"), this, [this]() {
+		QString path = QFileDialog::getOpenFileName(this, QStringLiteral("Import Layout"), c_->presetsDir(),
+							    QStringLiteral("Output Mapping layout (*.json)"));
+		QString err;
+		if (!path.isEmpty() && !c_->importLayout(path, &err))
+			QMessageBox::warning(this, QStringLiteral("Import Layout"), err);
+	});
+	m->addAction(QStringLiteral("Export Layout File…"), this, [this]() {
+		QString base = c_->currentPreset().isEmpty() ? QStringLiteral("output-mapping-layout")
+							     : c_->currentPreset();
+		QString dir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+		QString path = QFileDialog::getSaveFileName(this, QStringLiteral("Export Layout"),
+							    dir + "/" + base + ".json",
+							    QStringLiteral("Output Mapping layout (*.json)"));
+		QString err;
+		if (!path.isEmpty() && !c_->exportLayout(path, &err))
+			QMessageBox::warning(this, QStringLiteral("Export Layout"), err);
+	});
+	if (!names.isEmpty()) {
+		QMenu *del = m->addMenu(QStringLiteral("Delete Preset"));
+		for (const QString &name : names)
+			del->addAction(name, this, [this, name]() {
+				if (QMessageBox::question(this, QStringLiteral("Delete Preset"),
+							  QStringLiteral("Delete the preset “%1”?").arg(name)) !=
+				    QMessageBox::Yes)
+					return;
+				QString err;
+				if (!c_->deletePreset(name, &err))
+					QMessageBox::warning(this, QStringLiteral("Delete Preset"), err);
+			});
+	}
+	m->addAction(QStringLiteral("Open Presets Folder"), this, [this]() {
+		QDir().mkpath(c_->presetsDir());
+		QDesktopServices::openUrl(QUrl::fromLocalFile(c_->presetsDir()));
+	});
+}
 
 void MappingEditor::applyLayout()
 {
@@ -303,6 +398,17 @@ void MappingEditor::buildUi()
 	redoAct_->setShortcut(QKeySequence::Redo);
 	redoAct_->setToolTip(
 		QStringLiteral("Redo (%1)").arg(QKeySequence(QKeySequence::Redo).toString(QKeySequence::NativeText)));
+	tb->addSeparator();
+
+	presetsBtn_ = new QToolButton(tb);
+	presetsBtn_->setObjectName("MenuButton");
+	presetsBtn_->setPopupMode(QToolButton::InstantPopup);
+	presetsBtn_->setToolTip(QStringLiteral("Save and recall complete layouts (displays, slices, positions)"));
+	auto *presetsMenu = new QMenu(presetsBtn_);
+	presetsMenu->setToolTipsVisible(true);
+	connect(presetsMenu, &QMenu::aboutToShow, this, [this, presetsMenu]() { populatePresetsMenu(presetsMenu); });
+	presetsBtn_->setMenu(presetsMenu);
+	tb->addWidget(presetsBtn_);
 	tb->addSeparator();
 
 	dupAct_ =

@@ -59,6 +59,14 @@ is the place they would go).
     bottom). *Auto* (default) stacks them when the Program canvas is wider
     than 2:1, which on 3840×1080 more than doubles each preview's size. The
     choice is remembered.
+  - **Presets ▾**: save the whole layout (displays, slices, positions)
+    under a name and recall it with one click. Recall is live-safe: running
+    outputs stay up if the preset still uses their display, the others stop,
+    nothing new goes fullscreen by itself, and Undo brings back the previous
+    layout. **Import / Export Layout File…** writes a portable `.json` you
+    can back up or move between machines. Presets live in the plugin's
+    `layouts` folder (*Presets ▸ Open Presets Folder*). "•" next to the
+    preset name means you changed something since saving or recalling it.
   - **Undo / Redo** (Ctrl+Z / Ctrl+Y, ⌘Z / ⇧⌘Z) for every edit; a drag or
     a burst of nudges is one step.
   - The *new slices → Display* chip shows where a newly drawn slice will
@@ -298,6 +306,7 @@ Vendor name `output-mapping`, called via `CallVendorRequest`:
 | `StartFullscreen` / `OpenWindow` / `StopOutput` | `{displayId}` or `{displayName}` | Per-display output control (identity safety checks apply) |
 | `StartAll` / `StopAll` | – | All exactly identified displays / all outputs |
 | `Undo` / `Redo` | – | Same as the editor buttons |
+| `ListPresets` / `SavePreset` / `LoadPreset` / `DeletePreset` | `{name}` | Layout presets, e.g. recall from a Stream Deck |
 | `Snapshot` | `{displayName, path}` | Render exactly what the display receives to `.png` / `.ppm` |
 | `OpenEditor` / `CloseEditor` / `Select` | … | Editor control |
 | `EditorDrag` / `EditorKey` | … | Automation only: needs `OUTPUT_MAPPING_AUTOMATION=1`. Feeds synthetic mouse and keyboard events to the real editor handlers. |

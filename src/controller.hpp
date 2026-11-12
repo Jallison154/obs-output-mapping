@@ -89,6 +89,21 @@ public:
 
 	void replaceDocument(const MappingDocument &doc);
 
+	/* -- layout presets / files --
+	 * Applying a layout keeps running outputs whose display still exists in
+	 * the new layout (same id and physical identity), stops the others and
+	 * never starts new ones. Undoable. */
+	bool applyLayout(const MappingDocument &doc, const QString &presetName = QString());
+	QString presetsDir() const;
+	QStringList presetNames() const;
+	bool savePreset(const QString &name, QString *error = nullptr);
+	bool loadPreset(const QString &name, QString *error = nullptr);
+	bool deletePreset(const QString &name, QString *error = nullptr);
+	bool exportLayout(const QString &path, QString *error = nullptr) const;
+	bool importLayout(const QString &path, QString *error = nullptr);
+	QString currentPreset() const { return currentPreset_; }
+	bool presetModified() const { return presetModified_; }
+
 	/* -- undo / redo (document edits; drags coalesce into one step) -- */
 	bool canUndo() const { return !undo_.empty(); }
 	bool canRedo() const { return !redo_.empty(); }
@@ -125,6 +140,7 @@ signals:
 	void outputsChanged();
 	void programSizeChanged();
 	void undoStateChanged();
+	void presetsChanged();
 
 private:
 	explicit Controller(QObject *parent = nullptr);
@@ -156,6 +172,9 @@ private:
 	/* Displays without a hardware identity, confirmed by the user for this
 	 * session only: mapping id -> OS screen id (cleared on disconnect). */
 	QHash<QString, QString> sessionConfirmed_;
+	QString currentPreset_;
+	bool presetModified_ = false;
+	QString presetPath(const QString &name) const;
 };
 
 } // namespace om

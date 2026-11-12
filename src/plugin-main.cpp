@@ -328,6 +328,54 @@ VENDOR_REQ(Select)
 	});
 }
 
+VENDOR_REQ(ListPresets)
+{
+	UNUSED_PARAMETER(req);
+	runBlocking([&]() {
+		obs_data_array_t *arr = obs_data_array_create();
+		for (const QString &n : Controller::instance()->presetNames()) {
+			obs_data_t *item = obs_data_create();
+			obs_data_set_string(item, "name", n.toUtf8().constData());
+			obs_data_array_push_back(arr, item);
+			obs_data_release(item);
+		}
+		obs_data_set_array(res, "presets", arr);
+		obs_data_array_release(arr);
+		obs_data_set_string(res, "current", Controller::instance()->currentPreset().toUtf8().constData());
+		obs_data_set_bool(res, "ok", true);
+	});
+}
+
+VENDOR_REQ(SavePreset)
+{
+	runBlocking([&]() {
+		QString err;
+		if (!Controller::instance()->savePreset(QString::fromUtf8(obs_data_get_string(req, "name")), &err))
+			return setError(res, err);
+		setStateJson(res);
+	});
+}
+
+VENDOR_REQ(LoadPreset)
+{
+	runBlocking([&]() {
+		QString err;
+		if (!Controller::instance()->loadPreset(QString::fromUtf8(obs_data_get_string(req, "name")), &err))
+			return setError(res, err);
+		setStateJson(res);
+	});
+}
+
+VENDOR_REQ(DeletePreset)
+{
+	runBlocking([&]() {
+		QString err;
+		if (!Controller::instance()->deletePreset(QString::fromUtf8(obs_data_get_string(req, "name")), &err))
+			return setError(res, err);
+		obs_data_set_bool(res, "ok", true);
+	});
+}
+
 VENDOR_REQ(Undo)
 {
 	UNUSED_PARAMETER(req);
@@ -421,6 +469,10 @@ static void registerVendor()
 	REG(OpenEditor);
 	REG(CloseEditor);
 	REG(Select);
+	REG(ListPresets);
+	REG(SavePreset);
+	REG(LoadPreset);
+	REG(DeletePreset);
 	REG(Undo);
 	REG(Redo);
 	REG(EditorCapture);

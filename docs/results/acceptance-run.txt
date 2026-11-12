@@ -24,6 +24,11 @@ Setting up OBS: 3840x1080 canvas, two test-pattern scenes, Fade transition
   [PASS] Delete key removes the selected slice
   [PASS] Undo restores the deleted slice exactly — [1920, 0, 1920, 1080] [200, 100, 1920, 1080]
   [PASS] Redo re-applies, undo brings it back
+  [PASS] Save preset — acceptance-A
+  [PASS] Recall preset restores the saved layout — moved [205, 100, 1920, 1080] -> recalled [200, 100, 1920, 1080]
+  [PASS] Recall keeps running outputs on displays the preset still uses — window
+  [PASS] Recalling a missing preset reports an error — Preset “no-such-preset” not found.
+  [PASS] Delete preset
   [PASS] Editor capture saved — 3000x1720
 
 == 5  Scene switch with transition; stop one output ==
@@ -56,5 +61,5 @@ Restarting OBS…
   [PASS] No fullscreen output on any unidentified display — ['Built-in']
   OBS exited cleanly
 
-40/40 checks passed
+45/45 checks passed
 EXIT 0

@@ -22,7 +22,7 @@ versions as untested.
   snapping, numeric edits, fit, 1:1, clipping) and display identity
   matching (exact UUID, serial re-identification, twin units, missing
   serials, duplicate UUIDs). **All pass.**
-- `tools/acceptance_test.py` against a real OBS 33.0.1: **40/40 checks pass** (full log: [docs/results/acceptance-run.txt](docs/results/acceptance-run.txt))
+- `tools/acceptance_test.py` against a real OBS 33.0.1: **45/45 checks pass** (full log: [docs/results/acceptance-run.txt](docs/results/acceptance-run.txt))
 
 The acceptance test runs the six steps of the requested acceptance test.
 Since only one physical display was available, the two 1920×1080 outputs

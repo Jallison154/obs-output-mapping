@@ -80,7 +80,19 @@ def seed_config(port, password):
         json.dump(cfg, f, indent=2)
 
 
+def clear_unclean_marker():
+    """OBS 33 removed --disable-shutdown-check: after a crash or forced quit
+    it blocks on a "launch in Safe Mode?" prompt. Remove stale session
+    markers (only called while no OBS is running)."""
+    d = os.path.join(OBS_CONFIG, ".sentinel")
+    if os.path.isdir(d):
+        for name in os.listdir(d):
+            if name.startswith("run_"):
+                os.remove(os.path.join(d, name))
+
+
 def launch_obs(app, logfile):
+    clear_unclean_marker()
     env = dict(os.environ, OUTPUT_MAPPING_AUTOMATION="1", OUTPUT_MAPPING_OPEN_EDITOR="1")
     exe = os.path.join(app, "Contents", "MacOS", "OBS")
     out = open(logfile, "a")
@@ -324,6 +336,28 @@ def phase_mapping(ws, work, fullscreen_builtin):
     ws.vendor("Undo")
     check("Redo re-applies, undo brings it back", gone and any(
         s["name"] == "Slice 2" for d in state(ws)["displays"] for s in d["slices"]))
+
+    # Layout presets: save, change, recall (running output must stay up).
+    r = ws.vendor("SavePreset", {"name": "acceptance-A"})
+    lp = ws.vendor("ListPresets")
+    check("Save preset", r.get("ok") and any(p["name"] == "acceptance-A" for p in lp.get("presets", []))
+          and lp.get("current") == "acceptance-A", str(lp.get("current")))
+    ws.vendor("Select", {"sliceName": "Slice 2"})
+    for _ in range(5):
+        ws.vendor("EditorKey", {"view": "output", "key": 0x01000014})  # Right
+    _, moved = slice_by_name(state(ws), "Slice 2")
+    r = ws.vendor("LoadPreset", {"name": "acceptance-A"})
+    st = state(ws)
+    _, back = slice_by_name(st, "Slice 2")
+    check("Recall preset restores the saved layout", rl(moved["dst"])[0] == rl(s2b["dst"])[0] + 5
+          and back["dst"] == s2b["dst"], f"moved {rl(moved['dst'])} -> recalled {rl(back['dst'])}")
+    check("Recall keeps running outputs on displays the preset still uses",
+          disp(st, "HDMI-2")["output"] == "window", disp(st, "HDMI-2")["output"])
+    r = ws.vendor("LoadPreset", {"name": "no-such-preset"})
+    check("Recalling a missing preset reports an error", not r.get("ok"), r.get("error", ""))
+    r = ws.vendor("DeletePreset", {"name": "acceptance-A"})
+    lp = ws.vendor("ListPresets")
+    check("Delete preset", r.get("ok") and not any(p["name"] == "acceptance-A" for p in lp.get("presets", [])))
 
     # Editor screenshot rendered by the plugin (no Screen Recording permission needed).
     ws.vendor("Select", {"sliceName": "Slice 2"})

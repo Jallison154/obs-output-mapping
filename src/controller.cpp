@@ -18,7 +18,10 @@ the Free Software Foundation; either version 2 of the License, or
 #include <plugin-support.h>
 #include <util/platform.h>
 
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QRegularExpression>
 #include <QApplication>
 #include <QDateTime>
 #include <QGuiApplication>
@@ -137,6 +140,10 @@ void Controller::changed(Change kind)
 		redo_.clear();
 		committed_ = doc_;
 		emit undoStateChanged();
+	}
+	if (!currentPreset_.isEmpty() && !presetModified_) {
+		presetModified_ = true;
+		emit presetsChanged();
 	}
 	RenderStore::instance().publish(buildRenderState(doc_));
 	if (kind == Change::Structure)
@@ -627,6 +634,181 @@ void Controller::redo()
 	MappingDocument d = redo_.back();
 	redo_.pop_back();
 	restoreSnapshot(d);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Layout presets & files                                                  */
+
+static bool parseLayout(const QByteArray &raw, MappingDocument &out, QString *error)
+{
+	QJsonParseError perr{};
+	QJsonDocument jd = QJsonDocument::fromJson(raw, &perr);
+	if (perr.error != QJsonParseError::NoError || !jd.isObject()) {
+		if (error)
+			*error = QStringLiteral("Not a valid layout file (%1).").arg(perr.errorString());
+		return false;
+	}
+	QJsonObject o = jd.object();
+	if (!o.value("displays").isArray()) {
+		if (error)
+			*error = QStringLiteral("Not an Output Mapping layout (no \"displays\").");
+		return false;
+	}
+	if (o.value("version").toInt(1) > 1) {
+		if (error)
+			*error = QStringLiteral("This layout was saved by a newer version of Output Mapping.");
+		return false;
+	}
+	out = MappingDocument::fromJson(o);
+	return true;
+}
+
+bool Controller::applyLayout(const MappingDocument &incoming, const QString &presetName)
+{
+	MappingDocument next = incoming;
+	/* App-level options are not part of a layout. */
+	next.restoreOutputs = doc_.restoreOutputs;
+	next.excludeFromCapture = doc_.excludeFromCapture;
+
+	/* Keep outputs whose display survives unchanged; stop the rest. */
+	for (const QString &id : outputs_.keys()) {
+		const DisplayMapping *cur = doc_.display(id);
+		DisplayMapping *nd = next.display(id);
+		const bool same = cur && nd && cur->kind == nd->kind && cur->identity.uuid == nd->identity.uuid;
+		if (!same)
+			stopOutput(id, false);
+	}
+	for (auto &nd : next.displays) {
+		const DisplayMapping *cur = doc_.display(nd.id);
+		/* Run state follows what is actually running, never the file. */
+		nd.outputWanted = cur && outputs_.value(nd.id) && cur->outputWanted;
+	}
+
+	doc_ = next;
+	currentPreset_.clear(); /* so changed() doesn't flag it modified */
+	changed(Change::Structure);
+	currentPreset_ = presetName;
+	presetModified_ = false;
+	QString keepD = selDisplay_, keepS = selSlice_;
+	selDisplay_.clear();
+	selSlice_.clear();
+	if (doc_.slice(keepS))
+		select(QString(), keepS);
+	else if (doc_.display(keepD))
+		select(keepD, QString());
+	else if (!doc_.displays.empty())
+		select(doc_.displays.front().id, QString());
+	else
+		emit selectionChanged();
+	emit presetsChanged();
+	blog(LOG_INFO, "[output-mapping] applied layout%s%s (%d display(s))", presetName.isEmpty() ? "" : " ",
+	     qPrintable(presetName), (int)doc_.displays.size());
+	return true;
+}
+
+QString Controller::presetsDir() const
+{
+	char *p = obs_module_config_path("layouts");
+	QString out = QString::fromUtf8(p);
+	bfree(p);
+	return out;
+}
+
+QString Controller::presetPath(const QString &name) const
+{
+	QString safe = name.trimmed();
+	safe.replace(QRegularExpression(QStringLiteral("[\\\\/:*?\"<>|]")), QStringLiteral("_"));
+	return presetsDir() + "/" + safe + ".json";
+}
+
+QStringList Controller::presetNames() const
+{
+	QStringList names;
+	QDir dir(presetsDir());
+	for (const QFileInfo &fi :
+	     dir.entryInfoList({QStringLiteral("*.json")}, QDir::Files, QDir::Name | QDir::IgnoreCase))
+		names << fi.completeBaseName();
+	return names;
+}
+
+bool Controller::savePreset(const QString &name, QString *error)
+{
+	if (name.trimmed().isEmpty()) {
+		if (error)
+			*error = QStringLiteral("Enter a name.");
+		return false;
+	}
+	QDir().mkpath(presetsDir());
+	if (!exportLayout(presetPath(name), error))
+		return false;
+	currentPreset_ = QFileInfo(presetPath(name)).completeBaseName();
+	presetModified_ = false;
+	emit presetsChanged();
+	return true;
+}
+
+bool Controller::loadPreset(const QString &name, QString *error)
+{
+	QFile f(presetPath(name));
+	if (!f.open(QIODevice::ReadOnly)) {
+		if (error)
+			*error = QStringLiteral("Preset “%1” not found.").arg(name);
+		return false;
+	}
+	MappingDocument d;
+	if (!parseLayout(f.readAll(), d, error))
+		return false;
+	return applyLayout(d, QFileInfo(f.fileName()).completeBaseName());
+}
+
+bool Controller::deletePreset(const QString &name, QString *error)
+{
+	if (!QFile::remove(presetPath(name))) {
+		if (error)
+			*error = QStringLiteral("Could not delete preset “%1”.").arg(name);
+		return false;
+	}
+	if (currentPreset_ == name)
+		currentPreset_.clear();
+	emit presetsChanged();
+	return true;
+}
+
+bool Controller::exportLayout(const QString &path, QString *error) const
+{
+	QJsonObject o = doc_.toJson();
+	/* Run state and app options are not part of a layout. */
+	o.remove("restoreOutputs");
+	o.remove("excludeFromCapture");
+	QJsonArray ds = o.value("displays").toArray();
+	for (int i = 0; i < ds.size(); i++) {
+		QJsonObject d = ds[i].toObject();
+		d.remove("outputWanted");
+		ds[i] = d;
+	}
+	o["displays"] = ds;
+	QSaveFile f(path);
+	if (!f.open(QIODevice::WriteOnly) || f.write(QJsonDocument(o).toJson(QJsonDocument::Indented)) < 0 ||
+	    !f.commit()) {
+		if (error)
+			*error = QStringLiteral("Could not write %1.").arg(path);
+		return false;
+	}
+	return true;
+}
+
+bool Controller::importLayout(const QString &path, QString *error)
+{
+	QFile f(path);
+	if (!f.open(QIODevice::ReadOnly)) {
+		if (error)
+			*error = QStringLiteral("Could not open %1.").arg(path);
+		return false;
+	}
+	MappingDocument d;
+	if (!parseLayout(f.readAll(), d, error))
+		return false;
+	return applyLayout(d, QString());
 }
 
 void Controller::setRestoreOutputs(bool on)
