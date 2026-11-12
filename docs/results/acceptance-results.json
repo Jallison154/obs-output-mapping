@@ -1,0 +1,202 @@
+[
+  {
+    "check": "Program canvas is 3840x1080",
+    "pass": true,
+    "detail": "3840x1080"
+  },
+  {
+    "check": "Slice 1 drawn over left half (snapped)",
+    "pass": true,
+    "detail": "[0, 0, 1920, 1080]"
+  },
+  {
+    "check": "Slice 2 drawn over right half (snapped)",
+    "pass": true,
+    "detail": "[1920, 0, 1920, 1080]"
+  },
+  {
+    "check": "Slice 1 assigned to HDMI-1 at 1:1",
+    "pass": true,
+    "detail": "HDMI-1 {'h': 1080, 'w': 1920, 'x': 0, 'y': 0}"
+  },
+  {
+    "check": "Slice 2 assigned to HDMI-2 at 1:1",
+    "pass": true,
+    "detail": "HDMI-2 {'h': 1080, 'w': 1920, 'x': 0, 'y': 0}"
+  },
+  {
+    "check": "HDMI-1 == Program[0..1919] pixel-for-pixel",
+    "pass": true,
+    "detail": "mismatches=0 maxdiff=0 of 2073600 px"
+  },
+  {
+    "check": "HDMI-2 == Program[1920..3839] pixel-for-pixel",
+    "pass": true,
+    "detail": "mismatches=0 maxdiff=0 of 2073600 px"
+  },
+  {
+    "check": "Seam columns are Program x=1919 | x=1920",
+    "pass": true,
+    "detail": "(61, 220, 103) | (128, 220, 103)"
+  },
+  {
+    "check": "Slice 1 source moved by (+100,+50)",
+    "pass": true,
+    "detail": "{'h': 1080, 'w': 1920, 'x': 100, 'y': 50}"
+  },
+  {
+    "check": "Slice 1 destination unchanged",
+    "pass": true,
+    "detail": "{'h': 1080, 'w': 1920, 'x': 0, 'y': 0}"
+  },
+  {
+    "check": "HDMI-1 now shows Program from (100,50); rows past canvas are black",
+    "pass": true,
+    "detail": "mismatches=0 maxdiff=0"
+  },
+  {
+    "check": "Slice 2 destination moved by (+200,+100)",
+    "pass": true,
+    "detail": "{'h': 1080, 'w': 1920, 'x': 200, 'y': 100}"
+  },
+  {
+    "check": "Slice 2 source unchanged",
+    "pass": true,
+    "detail": "{'h': 1080, 'w': 1920, 'x': 1920, 'y': 0}"
+  },
+  {
+    "check": "HDMI-2 shows the same crop shifted to (200,100), black margin",
+    "pass": true,
+    "detail": "mismatches=0 maxdiff=0"
+  },
+  {
+    "check": "Arrow-key nudge moves destination (+3,+10)",
+    "pass": true,
+    "detail": "{'h': 1080, 'w': 1920, 'x': 203, 'y': 110}"
+  },
+  {
+    "check": "Delete key removes the selected slice",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "check": "Undo restores the deleted slice exactly",
+    "pass": true,
+    "detail": "[1920, 0, 1920, 1080] [200, 100, 1920, 1080]"
+  },
+  {
+    "check": "Redo re-applies, undo brings it back",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "check": "Editor capture saved",
+    "pass": true,
+    "detail": "3000x1720"
+  },
+  {
+    "check": "Mid-transition HDMI-1 is a blend of Scene A and Scene B",
+    "pass": true,
+    "detail": "B=121 (A=40, B=200)"
+  },
+  {
+    "check": "Mid-transition HDMI-2 is a blend of Scene A and Scene B",
+    "pass": true,
+    "detail": "B=61 (A=112, B=16)"
+  },
+  {
+    "check": "After transition HDMI-1 follows Program (Scene B)",
+    "pass": true,
+    "detail": "mismatches=0"
+  },
+  {
+    "check": "After transition HDMI-2 follows Program (Scene B)",
+    "pass": true,
+    "detail": "mismatches=0"
+  },
+  {
+    "check": "Stopping HDMI-1 leaves HDMI-2 running",
+    "pass": true,
+    "detail": "HDMI-1=none HDMI-2=window"
+  },
+  {
+    "check": "HDMI-2 still follows Program after HDMI-1 stopped",
+    "pass": true,
+    "detail": "mismatches=0"
+  },
+  {
+    "check": "Missing display reports 'disconnected'",
+    "pass": true,
+    "detail": "Disconnected"
+  },
+  {
+    "check": "Same-model display without serial/UUID reports 'ambiguous'",
+    "pass": true,
+    "detail": "Ambiguous identity \u00b7 reassign"
+  },
+  {
+    "check": "StartFullscreen refused on disconnected display",
+    "pass": true,
+    "detail": "Display is disconnected. Reassign it before starting fullscreen."
+  },
+  {
+    "check": "StartFullscreen refused on ambiguous display",
+    "pass": true,
+    "detail": "Display is ambiguous. Reassign it before starting fullscreen."
+  },
+  {
+    "check": "Borderless fullscreen opens on the built-in display",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "check": "Fullscreen output stays up (placement watchdog is satisfied)",
+    "pass": true,
+    "detail": "output=fullscreen"
+  },
+  {
+    "check": "Slice 1 persisted (src+dst)",
+    "pass": true,
+    "detail": "{'h': 1080, 'w': 1920, 'x': 100, 'y': 50} {'h': 1080, 'w': 1920, 'x': 0, 'y': 0}"
+  },
+  {
+    "check": "Slice 2 persisted (src+dst)",
+    "pass": true,
+    "detail": "{'h': 1080, 'w': 1920, 'x': 1920, 'y': 0} {'h': 1080, 'w': 1920, 'x': 200, 'y': 100}"
+  },
+  {
+    "check": "Display names / kinds persisted",
+    "pass": true,
+    "detail": "['HDMI-1', 'HDMI-2', 'Missing HDMI', 'Twin Display', 'Built-in']"
+  },
+  {
+    "check": "Missing display shown as disconnected after restart",
+    "pass": true,
+    "detail": "Disconnected"
+  },
+  {
+    "check": "Missing display was NOT opened anywhere (wanted output held back)",
+    "pass": true,
+    "detail": "output=none outputWanted=True"
+  },
+  {
+    "check": "Ambiguous display not opened",
+    "pass": true,
+    "detail": "ambiguous output=none"
+  },
+  {
+    "check": "Fullscreen on exactly-identified built-in display restored after restart",
+    "pass": true,
+    "detail": "output=fullscreen"
+  },
+  {
+    "check": "User stop clears restore flag",
+    "pass": true,
+    "detail": "output=none outputWanted=False"
+  },
+  {
+    "check": "No fullscreen output on any unidentified display",
+    "pass": true,
+    "detail": "['Built-in']"
+  }
+]

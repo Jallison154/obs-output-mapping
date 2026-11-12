@@ -1,0 +1,60 @@
+Connected to OBS 33.0.1
+Setting up OBS: 3840x1080 canvas, two test-pattern scenes, Fade transition
+  [PASS] Program canvas is 3840x1080 — 3840x1080
+
+== 1/2  Two 1920x1080 outputs, slices drawn with the mouse ==
+  [PASS] Slice 1 drawn over left half (snapped) — [0, 0, 1920, 1080]
+  [PASS] Slice 2 drawn over right half (snapped) — [1920, 0, 1920, 1080]
+  [PASS] Slice 1 assigned to HDMI-1 at 1:1 — HDMI-1 {'h': 1080, 'w': 1920, 'x': 0, 'y': 0}
+  [PASS] Slice 2 assigned to HDMI-2 at 1:1 — HDMI-2 {'h': 1080, 'w': 1920, 'x': 0, 'y': 0}
+  [PASS] HDMI-1 == Program[0..1919] pixel-for-pixel — mismatches=0 maxdiff=0 of 2073600 px
+  [PASS] HDMI-2 == Program[1920..3839] pixel-for-pixel — mismatches=0 maxdiff=0 of 2073600 px
+  [PASS] Seam columns are Program x=1919 | x=1920 — (61, 220, 103) | (128, 220, 103)
+
+== 3  Drag source rect in Input Selection (destination fixed) ==
+  [PASS] Slice 1 source moved by (+100,+50) — {'h': 1080, 'w': 1920, 'x': 100, 'y': 50}
+  [PASS] Slice 1 destination unchanged — {'h': 1080, 'w': 1920, 'x': 0, 'y': 0}
+  [PASS] HDMI-1 now shows Program from (100,50); rows past canvas are black — mismatches=0 maxdiff=0
+
+== 4  Drag destination rect in Output Placement (source fixed) ==
+  [PASS] Slice 2 destination moved by (+200,+100) — {'h': 1080, 'w': 1920, 'x': 200, 'y': 100}
+  [PASS] Slice 2 source unchanged — {'h': 1080, 'w': 1920, 'x': 1920, 'y': 0}
+  [PASS] HDMI-2 shows the same crop shifted to (200,100), black margin — mismatches=0 maxdiff=0
+  [PASS] Arrow-key nudge moves destination (+3,+10) — {'h': 1080, 'w': 1920, 'x': 203, 'y': 110}
+  [PASS] Delete key removes the selected slice
+  [PASS] Undo restores the deleted slice exactly — [1920, 0, 1920, 1080] [200, 100, 1920, 1080]
+  [PASS] Redo re-applies, undo brings it back
+  [PASS] Editor capture saved — 3000x1720
+
+== 5  Scene switch with transition; stop one output ==
+  [PASS] Mid-transition HDMI-1 is a blend of Scene A and Scene B — B=121 (A=40, B=200)
+  [PASS] Mid-transition HDMI-2 is a blend of Scene A and Scene B — B=61 (A=112, B=16)
+  [PASS] After transition HDMI-1 follows Program (Scene B) — mismatches=0
+  [PASS] After transition HDMI-2 follows Program (Scene B) — mismatches=0
+  [PASS] Stopping HDMI-1 leaves HDMI-2 running — HDMI-1=none HDMI-2=window
+  [PASS] HDMI-2 still follows Program after HDMI-1 stopped — mismatches=0
+  [PASS] Missing display reports 'disconnected' — Disconnected
+  [PASS] Same-model display without serial/UUID reports 'ambiguous' — Ambiguous identity · reassign
+  [PASS] StartFullscreen refused on disconnected display — Display is disconnected. Reassign it before starting fullscreen.
+  [PASS] StartFullscreen refused on ambiguous display — Display is ambiguous. Reassign it before starting fullscreen.
+  [PASS] Borderless fullscreen opens on the built-in display
+  [PASS] Fullscreen output stays up (placement watchdog is satisfied) — output=fullscreen
+
+Quitting OBS…
+  OBS exited cleanly
+Restarting OBS…
+
+== 6  After restart: persistence and missing displays ==
+  [PASS] Slice 1 persisted (src+dst) — {'h': 1080, 'w': 1920, 'x': 100, 'y': 50} {'h': 1080, 'w': 1920, 'x': 0, 'y': 0}
+  [PASS] Slice 2 persisted (src+dst) — {'h': 1080, 'w': 1920, 'x': 1920, 'y': 0} {'h': 1080, 'w': 1920, 'x': 200, 'y': 100}
+  [PASS] Display names / kinds persisted — ['HDMI-1', 'HDMI-2', 'Missing HDMI', 'Twin Display', 'Built-in']
+  [PASS] Missing display shown as disconnected after restart — Disconnected
+  [PASS] Missing display was NOT opened anywhere (wanted output held back) — output=none outputWanted=True
+  [PASS] Ambiguous display not opened — ambiguous output=none
+  [PASS] Fullscreen on exactly-identified built-in display restored after restart — output=fullscreen
+  [PASS] User stop clears restore flag — output=none outputWanted=False
+  [PASS] No fullscreen output on any unidentified display — ['Built-in']
+  OBS exited cleanly
+
+40/40 checks passed
+EXIT 0

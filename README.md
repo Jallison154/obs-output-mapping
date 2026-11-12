@@ -1,0 +1,308 @@
+# Output Mapping for OBS Studio
+
+A native OBS Studio plugin that gives OBS a workflow like Resolume Arena's
+*Advanced Output*. Draw **slices** on the live Program canvas, assign each
+slice to a display (HDMI output), and independently adjust **which part of
+Program it grabs** (Input Selection) and **where it lands on the display**
+(Output Placement). Every mapped output follows Program live, including
+transitions, and runs independently of streaming and recording.
+
+```
+Program canvas 3840×1080
+┌───────────────────┬───────────────────┐
+│     Slice 1       │      Slice 2      │   Input Selection: source crops (Program px)
+└─────────┬─────────┴─────────┬─────────┘
+          ▼                   ▼
+   ┌─────────────┐     ┌─────────────┐
+   │   HDMI-1    │     │   HDMI-2    │      Output Placement: destinations (display px)
+   │ 1920×1080   │     │ 1920×1080   │
+   └─────────────┘     └─────────────┘
+```
+
+## Status
+
+| Platform | Status |
+|---|---|
+| **Windows 10 (2004+) / 11, x64**, OBS 33.0.1 | **Primary target.** Native display layer (`src/platform/platform-windows.cpp`). **Not yet compiled or run on Windows:** this was developed on a Mac. Build it with the template's Windows CI or Visual Studio (below), then run [docs/windows-test-plan.md](docs/windows-test-plan.md). |
+| macOS 13+ (universal), OBS 33.0.1 | Built and verified: 40/40 automated acceptance checks (see [VERIFICATION.md](VERIFICATION.md)) |
+| Linux | Generic Qt fallback (`platform-qt.cpp`); not built or tested |
+
+Implemented now: rectangular slicing. Corner warping, masks and edge
+blending are not yet implemented (the compositor in `src/render/compositor.cpp`
+is the place they would go).
+
+## Features
+
+- **One editor window** (Tools ▸ *Output Mapping…*): a display and slice
+  sidebar, plus two synchronized live previews side by side.
+  - **Input Selection** shows the live Program canvas. Click and drag to draw a
+    slice. Drag or resize a slice to change which Program pixels it grabs;
+    its destination stays fixed.
+  - **Output Placement** shows the selected display at its real aspect ratio,
+    with its name and resolution, and renders the actual composed video.
+    Drag or resize slices there to move them on the display; their source
+    crop stays fixed. It is drawn by the same GPU code as the real output.
+  - Each slice has the same outline colour in both previews and the sidebar.
+    Selection is synced across all three.
+  - Sidebar: rename (double-click), duplicate (⌘D), delete, reorder by drag
+    or Bring Forward / Send Backward, and reassign to another display (drag,
+    context menu, or the *Display* field). **Top of the list is drawn on
+    top.**
+  - Numeric **X / Y / W / H** fields for the source (Program px) and the
+    destination (physical display px), kept in sync with the drag handles.
+  - Zoom (mouse wheel, Ctrl/⌘+scroll, pinch, + / −), pan (trackpad
+    scroll, Space-drag, middle-drag), Fit (F or double-click), 100% (1).
+    Snapping to canvas edges, the centre and other slices (hold Alt/⌥ to
+    bypass). Arrow-key nudge (Shift ×10). Optional aspect-ratio lock (hold
+    Shift while resizing to toggle it temporarily).
+  - **Undo / Redo** (Ctrl+Z / Ctrl+Y, ⌘Z / ⇧⌘Z) for every edit; a drag or
+    a burst of nudges is one step.
+  - The *new slices → Display* chip shows where a newly drawn slice will
+    go. The sidebar shows each display's state at a glance (READY, LIVE,
+    WINDOW, OFFLINE, CHECK, VIRTUAL), and each slice shows 1:1 or scaled.
+  - An empty state walks you through adding the first display.
+  - **Fit to Display** and **1:1 Pixels** actions.
+  - Outlines, labels, handles and guides are drawn only in the editor. The
+    outputs carry only the composed video.
+- **Outputs**
+  - Independent **Start / Stop Fullscreen** per display. Several fullscreen
+    outputs can run at once, with any number of slices composited per
+    display.
+  - **Open Window**: a windowed output for testing, or for *virtual* displays
+    (a fixed resolution with no monitor attached).
+  - **Save Snapshot…**: renders exactly what the display receives to a PNG.
+  - Hotkeys (Settings ▸ Hotkeys): *Start all fullscreen outputs*, *Stop all
+    outputs*, *Open editor*. Also Tools ▸ *Output Mapping: Stop All
+    Outputs*.
+  - **Esc** stops a windowed output. It stops a fullscreen output only when
+    that output covers the screen OBS is on, so you can never get stuck
+    behind it. A stray key on a show output on another display does nothing.
+  - **Options ▸ Hide outputs from screen capture** (on by default): outputs
+    are excluded from Display/Window Capture (Windows
+    `WDA_EXCLUDEFROMCAPTURE`, macOS `NSWindowSharingNone`), so Program can
+    never contain its own output.
+- **Display identity and safety**
+  - Displays are identified by the macOS display UUID plus EDID
+    vendor/model/serial. A display counts as connected only when it is
+    positively identified:
+    - **Connected**: exact UUID match.
+    - **Connected (re-identified by serial)**: the UUID changed (for example,
+      another port), but a unique non-zero EDID serial proves it is the same
+      unit.
+    - **Ambiguous**: a same-model display is present, but nothing proves it
+      is the same one (no serial, or a twin unit). Fullscreen is blocked
+      until you pick the display under *Output to*.
+    - **Disconnected**: nothing plausible is attached. Fullscreen is
+      blocked.
+  - If a display is unplugged while live, its output closes immediately,
+    before macOS can move the window onto another screen. When *that exact
+    display* comes back, the output resumes.
+  - Outputs that were running when OBS quit are restored at launch, but only
+    on exactly identified displays.
+  - A **watchdog** checks every 250 ms (and immediately on Windows
+    `WM_DISPLAYCHANGE`) that each fullscreen output still sits exactly on
+    its own display. If the OS moved or resized it, it is put back; if the
+    display is gone or its identity changed, the output is stopped.
+  - On Windows, identity is the DisplayConfig monitor device path (one per
+    monitor and connector) plus EDID vendor/product/serial read from the
+    registry. Placement uses the monitor's exact physical rect, so 1:1 holds
+    at any Windows scaling (125 %, 150 %, 175 %…). If a config file can't
+    be read it is set aside rather than overwritten, and a `.bak` of the
+    last good file is kept.
+- **Persistence**: `~/Library/Application Support/obs-studio/plugin_config/output-mapping/mappings.json`
+  (global, independent of scene collections). Hotkeys are stored in
+  `hotkeys.json` next to it.
+- **Remote control**: obs-websocket vendor `output-mapping`. See
+  [Remote control](#remote-control-obs-websocket).
+
+## How it works (OBS APIs)
+
+| Need | OBS 33 API used | Notes |
+|---|---|---|
+| Live Program frame | `obs_get_main_texture()` (public, `obs.h`) | The main canvas render texture: Program after transitions. libobs renders it every frame whether or not you stream or record, so outputs are independent of both. No desktop capture, and nothing is fed back into Program. |
+| Colour handling | Same technique selection as libobs' `obs_render_main_texture()` (`Draw` / `DrawTonemap` / `DrawMultiply`, sRGB-aware sampling) | Outputs look identical to OBS's own projectors. |
+| Separate per-display rendering | `obs_display_create()` + `obs_display_add_draw_callback()` on a native Qt widget (`gs_window.view` = `NSView*`) | The same mechanism OBS projectors use. Each output and each editor preview is its own swapchain, rendered on the OBS graphics thread. |
+| GPU crop and composite | `gs_draw_sprite_subregion()` with per-slice translate/scale matrices, the default effect, point sampling for exact 1:1 copies and linear for scaled ones | Sources are clipped to the canvas; the clipped part renders black rather than being clamped or stretched. |
+| Clipping in the editor | `gs_set_viewport()` limited to the visible canvas, plus a matching `gs_ortho()` | Scissor rects are avoided because their Y origin differs between the GL and D3D/Metal back-ends. |
+| Snapshots | `obs_add_main_rendered_callback()` → `gs_texrender` → `gs_stagesurface` | Runs the same `renderDisplay()` as the outputs, inside a real frame. |
+| UI | `obs_frontend_add_tools_menu_qaction`, `obs_frontend_get_main_window`, frontend hotkeys, frontend events (`FINISHED_LOADING`, `EXIT`) | |
+
+### Where the public API falls short, and what this plugin does instead
+
+1. **No public Qt display widget.** OBS's `OBSQTDisplay` (and `OBSProjector`)
+   live in the frontend and aren't exported to plugins. The plugin carries
+   a small equivalent, `src/ui/obs-display-widget.cpp`: a native `QWidget`
+   that creates an `obs_display` once exposed and resizes and destroys it
+   with the window surface.
+2. **No API for "fullscreen on display X" or for display identity.** OBS
+   projectors use `QWidget::showFullScreen()` on a screen index, which (a)
+   on macOS creates a separate Space per display and fails when *Displays
+   have separate Spaces* is off, and (b) uses a screen index that changes
+   when displays are re-plugged. The plugin instead:
+   - opens a borderless window at the display's exact frame, at
+     `NSStatusWindowLevel` (above the menu bar and Dock), joined to all
+     Spaces, with no shadow and without activating
+     (`src/platform/platform-macos.mm`). This works the same with or
+     without separate Spaces;
+   - on Windows, uses a `WS_POPUP`, topmost, tool-window HWND that never
+     activates, placed with `SetWindowPos` at the monitor's exact physical
+     rect (`platform-windows.cpp`), so taskbar, DPI scaling and Windows'
+     own fullscreen heuristics don't change its size;
+   - identifies displays by OS identity plus EDID vendor/model/serial
+     (Windows: DisplayConfig device path and registry EDID; macOS:
+     `CGDisplayCreateUUIDFromDisplayID`), and refuses anything ambiguous;
+   - holds a display-sleep assertion while any fullscreen output runs.
+3. **No public "Program texture" outside the render loop.** Snapshots use
+   `obs_add_main_rendered_callback` so they run inside a frame on the
+   graphics thread.
+
+Everything else uses public libobs and obs-frontend-api calls. No private
+symbols or frontend internals are touched.
+
+## Building
+
+The first configure downloads the OBS 33.0.1 sources and the matching
+prebuilt obs-deps and Qt 6 listed in `buildspec.json`, then builds libobs
+and obs-frontend-api into `.deps/`. This is the standard
+[obs-plugintemplate](https://github.com/obsproject/obs-plugintemplate)
+flow.
+
+### Windows (primary)
+
+Requirements: Windows 10/11 x64, Visual Studio 2022 with *Desktop
+development with C++*, Windows SDK 10.0.20348 or newer, CMake 3.28+,
+Git.
+
+```powershell
+cmake --preset windows-x64
+cmake --build --preset windows-x64 --config RelWithDebInfo
+cmake --install build_x64 --prefix release --config RelWithDebInfo
+```
+
+Install by copying the `release\output-mapping` folder (it contains
+`bin\64bit\output-mapping.dll` and `data\`) to
+`C:\ProgramData\obs-studio\plugins\`, then restart OBS. The editor is
+under **Tools ▸ Output Mapping…**.
+
+Alternatively, push the repository to GitHub: the template's **Build
+Project** workflow builds on `windows-2022` with warnings as errors and
+uploads a ready-to-install zip.
+
+### macOS
+
+Requirements: macOS 13+, Xcode 16+ (verified: Xcode 27.1), CMake 3.28+.
+
+> **Don't put the build directory in an iCloud-synced folder** (Desktop or
+> Documents with iCloud Drive). The File Provider adds
+> `com.apple.FinderInfo` to `.plugin` bundles and `codesign` fails. Point
+> `-B` somewhere else.
+
+```bash
+cmake --preset macos -B ~/Library/Caches/obs-output-mapping/build_macos
+```
+
+```bash
+cmake --build ~/Library/Caches/obs-output-mapping/build_macos --config RelWithDebInfo
+```
+
+```bash
+mkdir -p ~/Library/Application\ Support/obs-studio/plugins && ditto ~/Library/Caches/obs-output-mapping/build_macos/RelWithDebInfo/output-mapping.plugin ~/Library/Application\ Support/obs-studio/plugins/output-mapping.plugin
+```
+
+### Tests
+
+- Core unit tests (geometry, display identity rules):
+  `output-mapping-core-tests` (built with the plugin).
+- End-to-end acceptance test against a real OBS. It uses obs-websocket
+  with a random password, creates an "Output Mapping Test" scene
+  collection, and restarts OBS once:
+
+  ```bash
+  python3 tools/acceptance_test.py --obs-app /Applications/OBS.app --work /tmp/omtest
+  ```
+
+  The harness currently launches OBS the macOS way; on Windows, run the
+  steps in [docs/windows-test-plan.md](docs/windows-test-plan.md).
+
+## Walkthrough: 3840×1080 Program onto two 1920×1080 displays
+
+1. **Settings ▸ Video**: set *Base (Canvas) Resolution* to `3840x1080`.
+   Build your scenes on that canvas.
+2. Connect both HDMI displays and set each to its native 1920×1080
+   (Windows: *Settings ▸ System ▸ Display*, choose "Extend these displays";
+   macOS: *System Settings ▸ Displays*). Avoid "scaled" modes; the editor warns if a
+   display is not pixel-exact.
+3. Open **Tools ▸ Output Mapping…**.
+4. **＋ Display**: pick the first HDMI display, then **＋ Display** again
+   for the second. Each appears in the sidebar with a green *Connected* dot
+   and its resolution. Rename them by selecting one and editing *Name* (for
+   example `Left` / `Right`).
+5. Select **Left**. In **Input Selection**, drag from the top-left corner to
+   the middle of the bottom edge. Snapping pulls the edges to `0,0` and
+   `1920,1080`. A new slice appears, outlined in its colour, with the
+   destination `0,0 1920×1080`: 1:1 on Left.
+6. Select **Right** and drag over the right half (`1920,0` → `3840,1080`).
+   It becomes Right's slice, also at 1:1. Check the numbers in the inspector:
+   - Slice 1: Source `0 0 1920 1080`, Dest `0 0 1920 1080`
+   - Slice 2: Source `1920 0 1920 1080`, Dest `0 0 1920 1080`
+7. Click **▶ Start Fullscreen** for each display, or **▶ Start All** in
+   the toolbar. Each display now shows its half of Program.
+   Switch scenes in OBS and both outputs follow, including transitions.
+8. Fine-tuning:
+   - In **Input Selection**, drag a slice to grab a different area. Its
+     destination doesn't move.
+   - In **Output Placement**, drag a slice to move it on the display. Its
+     crop doesn't change.
+   - Use arrow keys to nudge by 1 px (⇧ for 10), the X/Y/W/H fields for
+     exact values, **Fit to Display** to fill the display, and **1:1
+     Pixels** to restore exact pixel scale.
+   - To put several slices on one display, draw more slices while that
+     display is selected (or drag them onto it in the sidebar). Order them
+     in the list; the top one is drawn on top.
+9. Quit OBS whenever you like. Mappings and running outputs are restored on
+   the next launch, but only on the same physical displays. If one is
+   missing, it shows as **Disconnected** (red dot) and nothing is opened on
+   another screen. Reassign it under **Output to** if it was replaced.
+
+Without the hardware, use **＋ Display ▸ Virtual Display…** (`1920x1080`)
+and **Open Window** to preview each output in a window, or use **Save
+Snapshot…** to check pixels.
+
+## Remote control (obs-websocket)
+
+Vendor name `output-mapping`, called via `CallVendorRequest`:
+
+| Request | Data | Effect |
+|---|---|---|
+| `GetState` | – | Mapping, per-display status and output state, connected screens, Program size |
+| `SetState` | `{state}` | Replace the whole mapping (same JSON as `mappings.json`; rects are `{"x","y","w","h"}` objects) |
+| `EditorCapture` | `{path}` | Save a screenshot of the editor; the live previews are rendered through their own GPU path |
+| `StartFullscreen` / `OpenWindow` / `StopOutput` | `{displayId}` or `{displayName}` | Per-display output control (identity safety checks apply) |
+| `StartAll` / `StopAll` | – | All exactly identified displays / all outputs |
+| `Undo` / `Redo` | – | Same as the editor buttons |
+| `Snapshot` | `{displayName, path}` | Render exactly what the display receives to `.png` / `.ppm` |
+| `OpenEditor` / `CloseEditor` / `Select` | … | Editor control |
+| `EditorDrag` / `EditorKey` | … | Automation only: needs `OUTPUT_MAPPING_AUTOMATION=1`. Feeds synthetic mouse and keyboard events to the real editor handlers. |
+
+## Source layout
+
+```
+src/core/            geometry.hpp (drag/resize/snap/clip math), display-match.hpp (identity rules); pure C++, unit tested
+src/model/           mapping document, JSON, immutable render snapshot shared with the graphics thread
+src/render/          GPU compositor (slices, overlays, snapshots)
+src/platform/        display enumeration and fullscreen windows (macOS .mm, generic Qt fallback)
+src/ui/              obs_display widget, output window, interactive preview, editor, theme
+src/controller.*     selection, mutations, display status, outputs, persistence
+src/plugin-main.cpp  module entry, Tools menu, hotkeys, obs-websocket vendor
+tests/               core unit tests
+tools/               acceptance test, websocket client, test patterns
+```
+
+## Verification
+
+See [VERIFICATION.md](VERIFICATION.md) for exactly what was verified on
+which setup, and what still needs testing with real hardware.
+
+## License
+
+Copyright © 2026 Okami Designs. Released under the GNU General Public License v2.0 or later (see [LICENSE](LICENSE)), as required for plugins linking libobs.
