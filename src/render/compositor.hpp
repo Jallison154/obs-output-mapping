@@ -21,6 +21,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QRectF>
 
 #include <functional>
+#include <vector>
 #include <string>
 
 namespace om::gfx {
@@ -85,5 +86,16 @@ double videoFps();
  * thread during the next frame and return it. Call from any non-graphics
  * thread (typically the UI thread); blocks up to ~3 s. */
 QImage captureOffscreen(uint32_t w, uint32_t h, std::function<void(uint32_t, uint32_t)> draw, QString *error = nullptr);
+
+/* ---- Thumbnails for the OBS dock (no native windows) ----
+ * The UI declares which displays it wants as thumbnails and at what size;
+ * the graphics thread renders them through renderDisplay() (same as the
+ * outputs) at ~10 fps with double-buffered, non-blocking readback. */
+struct ThumbnailRequest {
+	std::string displayId;
+	uint32_t width = 0, height = 0;
+};
+void setThumbnailRequests(std::vector<ThumbnailRequest> requests);
+QImage latestThumbnail(const std::string &displayId);
 
 } // namespace om::gfx

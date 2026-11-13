@@ -71,6 +71,7 @@ pattern.png` (each pixel encodes its own coordinates).
 | E6 | Ctrl+C / Ctrl+V a slice; select another display and Ctrl+V | Same display: offset copy. Other display: same crop placed there |
 | E7 | Ctrl+Shift+V onto another slice | It takes the copied slice's exact output position |
 | E8 | Tab, ] / [, H, F2, Esc in a preview | Next slice, layer order, show/hide, rename, deselect |
+| E10 | Dock the Output Mapping dock, then drag its edges to resize it quickly (wide, narrow, tall, very small); float it, re-dock it | Thumbnails resize smoothly, no flicker loop, OBS stays responsive (0.5.0 could crash here on Windows; fixed in 0.5.1) |
 | E9 | Lock a slice, try to drag / nudge / delete it | Nothing moves; the status bar says it's locked |
 
 Report anything that fails with the OBS log

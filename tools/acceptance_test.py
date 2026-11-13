@@ -37,7 +37,41 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import obsws  # noqa: E402
 from testpattern import pattern_pixel, write_png  # noqa: E402
 
-OBS_CONFIG = os.path.expanduser("~/Library/Application Support/obs-studio")
+# Tests always run OBS in an ISOLATED home (its own settings, plugins and
+# websocket port), so they never touch a user's real OBS or its settings,
+# even if that OBS is running at the same time.
+TEST_HOME = None
+OBS_CONFIG = None
+DEFAULT_PORT = 4466
+DEFAULT_PLUGIN = os.path.expanduser(
+    "~/Library/Caches/obs-output-mapping/build_macos/RelWithDebInfo/output-mapping.plugin")
+
+
+def set_test_home(home):
+    """Use `home` as the isolated user home for the test OBS."""
+    global TEST_HOME, OBS_CONFIG
+    TEST_HOME = os.path.abspath(home)
+    OBS_CONFIG = os.path.join(TEST_HOME, "Library", "Application Support", "obs-studio")
+    os.makedirs(OBS_CONFIG, exist_ok=True)
+
+
+def install_plugin(bundle=DEFAULT_PLUGIN):
+    """Install the plugin build into the isolated OBS (never the real one)."""
+    import shutil
+    dst = os.path.join(OBS_CONFIG, "plugins", "output-mapping.plugin")
+    if os.path.exists(dst):
+        shutil.rmtree(dst)
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    subprocess.run(["ditto", bundle, dst], check=True)
+
+
+def reset_plugin_state():
+    """Remove the isolated OBS's saved mappings (test data only)."""
+    d = os.path.join(OBS_CONFIG, "plugin_config", "output-mapping")
+    for name in ("mappings.json", "mappings.json.bak"):
+        p = os.path.join(d, name)
+        if os.path.exists(p):
+            os.remove(p)
 TAG_A, TAG_B = 40, 200
 RESULTS = []
 
@@ -92,21 +126,28 @@ def clear_unclean_marker():
 
 
 def launch_obs(app, logfile):
+    assert TEST_HOME, "call set_test_home() first"
     clear_unclean_marker()
-    env = dict(os.environ, OUTPUT_MAPPING_AUTOMATION="1", OUTPUT_MAPPING_OPEN_EDITOR="1")
+    # CFFIXED_USER_HOME makes OBS use the isolated home for all its settings;
+    # --multi lets it run next to a user's own OBS instance.
+    env = dict(os.environ, OUTPUT_MAPPING_AUTOMATION="1", OUTPUT_MAPPING_OPEN_EDITOR="1",
+               CFFIXED_USER_HOME=TEST_HOME, HOME=TEST_HOME)
     exe = os.path.join(app, "Contents", "MacOS", "OBS")
     out = open(logfile, "a")
-    return subprocess.Popen([exe, "--disable-shutdown-check", "--disable-updater",
+    return subprocess.Popen([exe, "--multi", "--disable-updater",
                              "--disable-missing-files-check"],
                             cwd=os.path.join(app, "Contents", "MacOS"), env=env, stdout=out, stderr=out)
 
 
 def quit_obs(proc):
-    """Graceful quit. OBS 33 blocks shutdown until its What's New network
-    fetch (WhatsNewInfoThread) returns; if that stalls we force-kill, which
-    also exercises crash recovery (mappings are saved on every change)."""
-    subprocess.run(["osascript", "-e", 'tell application id "com.obsproject.obs-studio" to quit'],
-                   capture_output=True)
+    """Quit ONLY the OBS process this harness started (never by app id, which
+    would also target a user's own OBS). SIGTERM asks OBS to shut down
+    cleanly; it can take a while because OBS waits for its What's New
+    network thread, so allow 90 s before force-killing."""
+    import signal
+    if proc.poll() is not None:
+        return True
+    proc.send_signal(signal.SIGTERM)
     try:
         proc.wait(timeout=90)
         log("  OBS exited cleanly")
@@ -630,18 +671,23 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--obs-app", required=True)
     ap.add_argument("--work", required=True)
-    ap.add_argument("--port", type=int, default=4455)
+    ap.add_argument("--port", type=int, default=DEFAULT_PORT)
+    ap.add_argument("--home", default=None, help="isolated OBS home (default: <work>/obs-home)")
+    ap.add_argument("--plugin", default=DEFAULT_PLUGIN, help="plugin bundle to test")
     ap.add_argument("--fullscreen-builtin", action="store_true",
                     help="also open a real fullscreen output on the built-in display for a few seconds")
     args = ap.parse_args()
     os.makedirs(args.work, exist_ok=True)
     logfile = os.path.join(args.work, "obs-stdout.log")
 
+    set_test_home(args.home or os.path.join(args.work, "obs-home"))
+    install_plugin(args.plugin)
+    reset_plugin_state()
     password = secrets.token_urlsafe(24)
     seed_config(args.port, password)
     proc = launch_obs(args.obs_app, logfile)
     try:
-        ws = obsws.connect(port=args.port, password=password, retries=90)
+        ws = obsws.connect(port=args.port, password=password, retries=300)
         log(f"Connected to OBS {ws.call('GetVersion')['obsVersion']}")
         setup_obs(ws, args.work)
         s1b, s2b = phase_mapping(ws, args.work, args.fullscreen_builtin)
@@ -653,7 +699,7 @@ def main():
     log("Restarting OBS…")
     proc = launch_obs(args.obs_app, logfile)
     try:
-        ws = obsws.connect(port=args.port, password=password, retries=90)
+        ws = obsws.connect(port=args.port, password=password, retries=300)
         phase_restart(ws, s1b, s2b, args.fullscreen_builtin)
         ws.close()
     finally:

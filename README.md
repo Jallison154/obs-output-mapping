@@ -41,7 +41,9 @@ is the place they would go).
   **Window** and **Clear Pattern** buttons, plus **Start All**, **Stop All**
   (asks first when live), **Test Pattern All** / **Clear All Patterns**
   (asks first when live) and **Editor…**. "Live previews" pauses the
-  thumbnails if you need to save GPU; outputs are unaffected.
+  thumbnails if you need to save GPU; outputs are unaffected. Thumbnails
+  refresh about 10 times a second and contain no native video windows, so
+  resizing, docking or floating the dock can't disturb OBS or the outputs.
 
   ![Output Mapping dock](docs/images/dock.png)
 
@@ -315,6 +317,10 @@ mkdir -p ~/Library/Application\ Support/obs-studio/plugins && ditto ~/Library/Ca
   3 s, delay every 7 s, presets every 13 s, test patterns every 17 s and
   nudging slices. It checks every output pixel-exact after each change and
   tracks OBS memory, render time and skipped frames:
+
+  Both test tools run OBS in an **isolated** home (own settings, plugins
+  and websocket port 4466, `--multi`), so they never touch your real OBS or
+  its settings, even while it is running.
 
   ```bash
   python3 tools/soak_test.py --obs-app /Applications/OBS.app --work /tmp/omsoak --minutes 30

@@ -18,6 +18,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <cmath>
 #include <cstring>
 #include <deque>
+#include <mutex>
 #include <unordered_map>
 #include <vector>
 #include <future>
@@ -86,6 +87,31 @@ static void destroyLine(DelayLine &l)
 
 static void delayTick(void *);
 
+/* Dock thumbnails: requests/images shared with the UI (mutex), render
+ * targets owned by the graphics thread. */
+struct ThumbSlot {
+	uint32_t w = 0, h = 0;
+	gs_texrender_t *tr = nullptr;
+	gs_stagesurf_t *stage[2] = {nullptr, nullptr};
+	bool primed[2] = {false, false};
+	int cycle = 0;
+};
+static std::mutex g_thumbMutex;
+static std::vector<ThumbnailRequest> g_thumbReqs;
+static std::unordered_map<std::string, QImage> g_thumbImages;
+static std::unordered_map<std::string, ThumbSlot> g_thumbSlots;
+static uint64_t g_thumbFrame = 0;
+
+static void destroyThumb(ThumbSlot &t)
+{
+	gs_texrender_destroy(t.tr);
+	gs_stagesurface_destroy(t.stage[0]);
+	gs_stagesurface_destroy(t.stage[1]);
+	t = ThumbSlot{};
+}
+
+static void thumbTick(const RenderState &st);
+
 void init()
 {
 	if (g_quad)
@@ -113,6 +139,9 @@ void init()
 void shutdown()
 {
 	obs_remove_main_rendered_callback(delayTick, nullptr);
+	for (auto &kv : g_thumbSlots)
+		destroyThumb(kv.second);
+	g_thumbSlots.clear();
 	for (auto &kv : g_delays)
 		destroyLine(kv.second);
 	g_delays.clear();
@@ -434,6 +463,8 @@ static void delayTick(void *)
 		const size_t idx = l.hist.size() - 1 - (size_t)std::floor(l.age);
 		l.show = l.hist[idx];
 	}
+
+	thumbTick(*st);
 }
 
 void setCanvasView(const QRectF &cv, int vpX, int vpY, int vpW, int vpH)
@@ -580,6 +611,96 @@ static void captureRendered(void *param)
 	if (job->done.exchange(true))
 		return;
 	job->promise.set_value(renderToImage(job->w, job->h, job->draw));
+}
+
+void setThumbnailRequests(std::vector<ThumbnailRequest> requests)
+{
+	std::lock_guard<std::mutex> lock(g_thumbMutex);
+	g_thumbReqs = std::move(requests);
+	for (auto it = g_thumbImages.begin(); it != g_thumbImages.end();) {
+		bool wanted = false;
+		for (const auto &r : g_thumbReqs)
+			wanted = wanted || r.displayId == it->first;
+		it = wanted ? std::next(it) : g_thumbImages.erase(it);
+	}
+}
+
+QImage latestThumbnail(const std::string &displayId)
+{
+	std::lock_guard<std::mutex> lock(g_thumbMutex);
+	auto it = g_thumbImages.find(displayId);
+	return it == g_thumbImages.end() ? QImage() : it->second;
+}
+
+static void thumbTick(const RenderState &st)
+{
+	/* ~10 fps whatever the OBS frame rate. */
+	const double fps = videoFps();
+	const uint64_t every = (uint64_t)std::max(1.0, std::round((fps > 0 ? fps : 30.0) / 10.0));
+	if (g_thumbFrame++ % every != 0)
+		return;
+
+	std::vector<ThumbnailRequest> reqs;
+	{
+		std::lock_guard<std::mutex> lock(g_thumbMutex);
+		reqs = g_thumbReqs;
+	}
+	for (auto it = g_thumbSlots.begin(); it != g_thumbSlots.end();) {
+		bool wanted = false;
+		for (const auto &r : reqs)
+			wanted = wanted || r.displayId == it->first;
+		if (!wanted) {
+			destroyThumb(it->second);
+			it = g_thumbSlots.erase(it);
+		} else {
+			++it;
+		}
+	}
+
+	for (const ThumbnailRequest &r : reqs) {
+		auto d = st.displays.find(r.displayId);
+		const uint32_t w = std::clamp<uint32_t>(r.width, 16, 1280), h = std::clamp<uint32_t>(r.height, 9, 1280);
+		if (d == st.displays.end())
+			continue;
+		ThumbSlot &t = g_thumbSlots[r.displayId];
+		if (t.w != w || t.h != h) {
+			destroyThumb(t);
+			t.w = w;
+			t.h = h;
+			t.tr = gs_texrender_create(GS_BGRA, GS_ZS_NONE);
+			t.stage[0] = gs_stagesurface_create(w, h, GS_BGRA);
+			t.stage[1] = gs_stagesurface_create(w, h, GS_BGRA);
+		}
+		if (!t.tr || !t.stage[0] || !t.stage[1])
+			continue;
+
+		gs_texrender_reset(t.tr);
+		if (gs_texrender_begin_with_color_space(t.tr, w, h, GS_CS_SRGB)) {
+			vec4 black;
+			vec4_set(&black, 0.0f, 0.0f, 0.0f, 1.0f);
+			gs_clear(GS_CLEAR_COLOR, &black, 0.0f, 0);
+			renderDisplay(d->second, w, h, true); /* same path as the output */
+			gs_texrender_end(t.tr);
+		}
+		const int k = t.cycle % 2, prev = (t.cycle + 1) % 2;
+		gs_stage_texture(t.stage[k], gs_texrender_get_texture(t.tr));
+		t.primed[k] = true;
+		/* Read back the one staged a cycle ago: already finished on the GPU,
+		 * so this never stalls the render loop. */
+		if (t.primed[prev]) {
+			uint8_t *data = nullptr;
+			uint32_t linesize = 0;
+			if (gs_stagesurface_map(t.stage[prev], &data, &linesize)) {
+				QImage img((int)w, (int)h, QImage::Format_RGB32);
+				for (uint32_t y = 0; y < h; y++)
+					memcpy(img.scanLine((int)y), data + (size_t)y * linesize, (size_t)w * 4);
+				gs_stagesurface_unmap(t.stage[prev]);
+				std::lock_guard<std::mutex> lock(g_thumbMutex);
+				g_thumbImages[r.displayId] = std::move(img);
+			}
+		}
+		t.cycle++;
+	}
 }
 
 QImage captureOffscreen(uint32_t w, uint32_t h, std::function<void(uint32_t, uint32_t)> draw, QString *error)

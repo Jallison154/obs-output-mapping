@@ -31,60 +31,61 @@ the Free Software Foundation; either version 2 of the License, or
 namespace om {
 
 std::atomic<bool> DockPreview::live{true};
+std::atomic<int> OutputDock::layoutPasses{0};
 
-DockPreview::DockPreview(const QString &displayId, QWidget *parent)
-	: ObsDisplayWidget(parent),
-	  id_(displayId.toStdString())
+DockPreview::DockPreview(const QString &displayId, int dispW, int dispH, QWidget *parent)
+	: QWidget(parent),
+	  id_(displayId),
+	  aspect_(dispW > 0 && dispH > 0 ? (double)dispH / dispW : 9.0 / 16.0)
 {
-	setBackground(0x101010);
-	setMinimumSize(80, 45);
+	setMinimumWidth(80);
+	QSizePolicy sp(QSizePolicy::Preferred, QSizePolicy::Preferred);
+	sp.setHeightForWidth(true);
+	setSizePolicy(sp);
+	setAttribute(Qt::WA_OpaquePaintEvent);
 }
 
-DockPreview::~DockPreview()
+int DockPreview::heightForWidth(int w) const
 {
-	destroyDisplay(); /* stop render callbacks before members die */
+	return std::clamp((int)(std::max(80, w) * aspect_), 45, 360);
 }
 
-QImage DockPreview::capture()
+QSize DockPreview::requestedPixels() const
 {
-	QSize px = pixelSize();
-	QImage img = gfx::captureOffscreen((uint32_t)px.width(), (uint32_t)px.height(),
-					   [this](uint32_t cx, uint32_t cy) { renderFrame(cx, cy); });
-	img.setDevicePixelRatio(devicePixelRatioF());
-	return img;
+	const double dpr = devicePixelRatioF();
+	const int w = std::clamp((int)(width() * dpr), 16, 640);
+	return QSize(w, std::max(9, (int)(w * aspect_)));
 }
 
-void DockPreview::renderFrame(uint32_t cx, uint32_t cy)
+void DockPreview::setImage(const QImage &img)
 {
-	if (!live.load())
+	image_ = img;
+	update();
+}
+
+void DockPreview::resizeEvent(QResizeEvent *e)
+{
+	OutputDock::layoutPasses++;
+	QWidget::resizeEvent(e);
+}
+
+void DockPreview::paintEvent(QPaintEvent *)
+{
+	QPainter p(this);
+	p.fillRect(rect(), QColor(16, 16, 16));
+	if (!live.load()) {
+		p.setPen(QColor(140, 140, 140));
+		p.drawText(rect(), Qt::AlignCenter, QStringLiteral("Preview paused"));
 		return;
-	RenderDisplay rd;
-	if (RenderStore::instance().getDisplay(id_, rd))
-		gfx::renderDisplay(rd, cx, cy, true); /* same path as the real output */
+	}
+	if (image_.isNull())
+		return;
+	QSize s = image_.size();
+	s.scale(size(), Qt::KeepAspectRatio);
+	QRect r(QPoint((width() - s.width()) / 2, (height() - s.height()) / 2), s);
+	p.setRenderHint(QPainter::SmoothPixmapTransform, true);
+	p.drawImage(r, image_);
 }
-
-/* A tile keeps its preview at the display's aspect ratio. */
-class DockTile : public QFrame {
-public:
-	DockTile(DockPreview *preview, int dispW, int dispH, QWidget *parent)
-		: QFrame(parent),
-		  preview_(preview),
-		  aspect_(dispW > 0 && dispH > 0 ? (double)dispH / dispW : 9.0 / 16.0)
-	{
-	}
-
-protected:
-	void resizeEvent(QResizeEvent *e) override
-	{
-		QFrame::resizeEvent(e);
-		const int w = std::max(80, preview_->width());
-		preview_->setFixedHeight(std::min(360, std::max(45, (int)(w * aspect_))));
-	}
-
-private:
-	DockPreview *preview_;
-	double aspect_;
-};
 
 OutputDock::OutputDock(std::function<void()> openEditor, QWidget *parent)
 	: QWidget(parent),
@@ -129,6 +130,9 @@ OutputDock::OutputDock(std::function<void()> openEditor, QWidget *parent)
 	scroll->setWidgetResizable(true);
 	scroll->setFrameShape(QFrame::NoFrame);
 	scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+	/* Always shown: a scrollbar that appears/disappears changes the width,
+	 * which changes thumbnail heights, which toggles the scrollbar again. */
+	scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
 	auto *container = new QWidget(scroll);
 	tiles_ = new QVBoxLayout(container);
 	tiles_->setContentsMargins(0, 0, 0, 0);
@@ -139,7 +143,22 @@ OutputDock::OutputDock(std::function<void()> openEditor, QWidget *parent)
 	connect(startAll, &QPushButton::clicked, this, []() { Controller::instance()->startAll(); });
 	connect(stopAll, &QPushButton::clicked, this, &OutputDock::stopAllConfirmed);
 	connect(editor, &QPushButton::clicked, this, [this]() { openEditor_(); });
-	connect(liveCheck_, &QCheckBox::toggled, this, [](bool on) { DockPreview::live.store(on); });
+	connect(liveCheck_, &QCheckBox::toggled, this, [this](bool on) {
+		DockPreview::live.store(on);
+		updateRequests();
+		for (DockPreview *p : findChildren<DockPreview *>())
+			p->update();
+	});
+
+	/* Pull the latest thumbnails ~10x a second; refresh the requested
+	 * sizes (cheap) so resizing the dock just changes the next render. */
+	auto *pull = new QTimer(this);
+	pull->setInterval(100);
+	connect(pull, &QTimer::timeout, this, [this]() {
+		updateRequests();
+		pullImages();
+	});
+	pull->start();
 
 	/* Rebuild (coalesced) whenever displays, outputs or status change. */
 	auto *debounce = new QTimer(this);
@@ -159,15 +178,7 @@ OutputDock::OutputDock(std::function<void()> openEditor, QWidget *parent)
 
 QImage OutputDock::captureImage()
 {
-	QPixmap pm = grab();
-	QPainter p(&pm);
-	for (DockPreview *v : findChildren<DockPreview *>()) {
-		QImage img = v->capture();
-		if (!img.isNull())
-			p.drawImage(QRect(v->mapTo(this, QPoint(0, 0)), v->size()), img);
-	}
-	p.end();
-	return pm.toImage();
+	return grab().toImage(); /* thumbnails are plain widgets now */
 }
 
 int OutputDock::tileCount() const
@@ -202,8 +213,8 @@ QWidget *OutputDock::makeTile(const QString &id)
 {
 	Controller *c = Controller::instance();
 	const DisplayMapping *d = c->doc().display(id);
-	auto *preview = new DockPreview(id);
-	auto *tile = new DockTile(preview, d->width, d->height, nullptr);
+	auto *preview = new DockPreview(id, d->width, d->height);
+	auto *tile = new QFrame();
 	tile->setFrameShape(QFrame::StyledPanel);
 	auto *v = new QVBoxLayout(tile);
 	v->setContentsMargins(6, 6, 6, 6);
@@ -315,6 +326,32 @@ void OutputDock::rebuild()
 			tiles_->addWidget(makeTile(d.id));
 	}
 	tiles_->addStretch(1);
+	updateRequests();
+}
+
+void OutputDock::updateRequests()
+{
+	std::vector<gfx::ThumbnailRequest> reqs;
+	if (DockPreview::live.load() && isVisible()) {
+		for (DockPreview *p : findChildren<DockPreview *>()) {
+			if (!p->isVisible())
+				continue;
+			const QSize px = p->requestedPixels();
+			reqs.push_back({p->displayId().toStdString(), (uint32_t)px.width(), (uint32_t)px.height()});
+		}
+	}
+	gfx::setThumbnailRequests(std::move(reqs));
+}
+
+void OutputDock::pullImages()
+{
+	if (!DockPreview::live.load())
+		return;
+	for (DockPreview *p : findChildren<DockPreview *>()) {
+		QImage img = gfx::latestThumbnail(p->displayId().toStdString());
+		if (!img.isNull())
+			p->setImage(img);
+	}
 }
 
 } // namespace om

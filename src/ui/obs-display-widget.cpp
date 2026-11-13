@@ -57,6 +57,11 @@ ObsDisplayWidget::ObsDisplayWidget(QWidget *parent, Qt::WindowFlags flags) : QWi
 	setAttribute(Qt::WA_NativeWindow);
 	setMouseTracking(true);
 
+	resizeTimer_ = new QTimer(this);
+	resizeTimer_->setSingleShot(true);
+	resizeTimer_->setInterval(30);
+	connect(resizeTimer_, &QTimer::timeout, this, &ObsDisplayWidget::applyPendingResize);
+
 	winId(); /* force native window creation so windowHandle() exists */
 	if (QWindow *w = windowHandle()) {
 		w->installEventFilter(this);
@@ -65,17 +70,12 @@ ObsDisplayWidget::ObsDisplayWidget(QWidget *parent, Qt::WindowFlags flags) : QWi
 				return;
 			if (!display_)
 				createDisplay();
-			else {
-				QSize s = pixelSize();
-				obs_display_resize(display_, (uint32_t)s.width(), (uint32_t)s.height());
-			}
+			else
+				scheduleResize();
 		});
 		connect(w, &QWindow::screenChanged, this, [this](QScreen *) {
 			createDisplay();
-			if (display_) {
-				QSize s = pixelSize();
-				obs_display_resize(display_, (uint32_t)s.width(), (uint32_t)s.height());
-			}
+			scheduleResize();
 		});
 	}
 }
@@ -86,8 +86,31 @@ ObsDisplayWidget::~ObsDisplayWidget()
 	destroyDisplay();
 }
 
+std::atomic<int> ObsDisplayWidget::surfaceResizes{0};
+
+void ObsDisplayWidget::scheduleResize()
+{
+	if (display_ && !destroying_)
+		resizeTimer_->start(); /* restarts: fires once the size settles */
+}
+
+void ObsDisplayWidget::applyPendingResize()
+{
+	if (!display_ || destroying_ || !isVisible())
+		return;
+	const QSize s = pixelSize();
+	if (s.width() < 2 || s.height() < 2 || s == appliedSize_)
+		return; /* degenerate or unchanged: keep the current swapchain */
+	appliedSize_ = s;
+	surfaceResizes++;
+	obs_display_resize(display_, (uint32_t)s.width(), (uint32_t)s.height());
+}
+
 void ObsDisplayWidget::destroyDisplay()
 {
+	if (resizeTimer_)
+		resizeTimer_->stop();
+	appliedSize_ = QSize();
 	if (display_) {
 		obs_display_remove_draw_callback(display_, drawCallback, this);
 		obs_display_destroy(display_); /* blocks until not rendering */
@@ -111,6 +134,9 @@ void ObsDisplayWidget::createDisplay()
 		return;
 
 	QSize s = pixelSize();
+	if (s.width() < 2 || s.height() < 2)
+		return; /* not laid out yet: create once it has a real size */
+	appliedSize_ = s;
 	gs_init_data info = {};
 	info.cx = (uint32_t)std::max(1, s.width());
 	info.cy = (uint32_t)std::max(1, s.height());
@@ -145,10 +171,7 @@ void ObsDisplayWidget::resizeEvent(QResizeEvent *e)
 {
 	QWidget::resizeEvent(e);
 	createDisplay();
-	if (isVisible() && display_) {
-		QSize s = pixelSize();
-		obs_display_resize(display_, (uint32_t)s.width(), (uint32_t)s.height());
-	}
+	scheduleResize();
 }
 
 QPaintEngine *ObsDisplayWidget::paintEngine() const

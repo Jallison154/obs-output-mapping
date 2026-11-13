@@ -16,6 +16,7 @@ the Free Software Foundation; either version 2 of the License, or
 
 #include <obs.h>
 
+#include <QTimer>
 #include <QWidget>
 
 #include <atomic>
@@ -32,6 +33,7 @@ public:
 	void destroyDisplay();
 	obs_display_t *display() const { return display_; }
 	QSize pixelSize() const;
+	static std::atomic<int> surfaceResizes; /* swapchain resizes (diagnostics) */
 	void setBackground(uint32_t rgb) { background_ = rgb; }
 
 protected:
@@ -46,6 +48,15 @@ protected:
 
 private:
 	void createDisplay();
+	/* Resizes are coalesced and validated before reaching the GPU: a burst
+	 * of window/dock resizes becomes one swapchain resize once the size
+	 * settles, never below 2x2 px and never for an unchanged size. (The
+	 * D3D11 swapchain can fail and leave no render target if it is resized
+	 * repeatedly or to a degenerate size.) */
+	void scheduleResize();
+	void applyPendingResize();
+	QTimer *resizeTimer_ = nullptr;
+	QSize appliedSize_;
 	static void drawCallback(void *param, uint32_t cx, uint32_t cy);
 
 	obs_display_t *display_ = nullptr;

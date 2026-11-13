@@ -14,8 +14,6 @@ the Free Software Foundation; either version 2 of the License, or
 
 #pragma once
 
-#include "ui/obs-display-widget.hpp"
-
 #include <QImage>
 #include <QWidget>
 
@@ -28,20 +26,31 @@ class QVBoxLayout;
 
 namespace om {
 
-/* Thumbnail of one output, rendered like the real output. */
-class DockPreview : public ObsDisplayWidget {
+/* Thumbnail of one output. A plain widget (no native window, no GPU
+ * surface): it paints the latest image rendered by the graphics thread
+ * through the same path as the real output (~10 fps). */
+class DockPreview : public QWidget {
 	Q_OBJECT
 public:
-	DockPreview(const QString &displayId, QWidget *parent = nullptr);
-	~DockPreview() override;
+	DockPreview(const QString &displayId, int dispW, int dispH, QWidget *parent = nullptr);
 	static std::atomic<bool> live; /* "Live previews" switch */
-	QImage capture();              /* offscreen render of the thumbnail (automation) */
+
+	QString displayId() const { return id_; }
+	QSize requestedPixels() const; /* thumbnail size to render */
+	void setImage(const QImage &img);
+
+	bool hasHeightForWidth() const override { return true; }
+	int heightForWidth(int w) const override;
+	QSize sizeHint() const override { return QSize(320, heightForWidth(320)); }
 
 protected:
-	void renderFrame(uint32_t cx, uint32_t cy) override;
+	void paintEvent(QPaintEvent *e) override;
+	void resizeEvent(QResizeEvent *e) override;
 
 private:
-	std::string id_;
+	QString id_;
+	double aspect_ = 9.0 / 16.0;
+	QImage image_;
 };
 
 class OutputDock : public QWidget {
@@ -52,9 +61,12 @@ public:
 	/* Screenshot of the dock with live thumbnails composited (automation). */
 	QImage captureImage();
 	int tileCount() const;
+	static std::atomic<int> layoutPasses; /* tile resize events (diagnostics) */
 
 private:
 	void rebuild();
+	void updateRequests(); /* tell the graphics thread which thumbnails to render */
+	void pullImages();
 	QWidget *makeTile(const QString &displayId);
 	void stopAllConfirmed();
 

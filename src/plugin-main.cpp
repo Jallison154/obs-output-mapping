@@ -29,6 +29,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 
 #include <QAction>
 #include <QDockWidget>
+#include <QElapsedTimer>
 #include <QApplication>
 #include <QJsonDocument>
 #include <QKeyEvent>
@@ -503,6 +504,34 @@ VENDOR_REQ(EditorAction)
 	});
 }
 
+/* Automation: resize the (floating) dock and report layout passes, to catch
+ * resize feedback loops. */
+VENDOR_REQ(DockResize)
+{
+	runBlocking([&]() {
+		if (!automationEnabled())
+			return setError(res, "set OUTPUT_MAPPING_AUTOMATION=1 to enable");
+		auto *dw = g_dock ? qobject_cast<QDockWidget *>(g_dock->parentWidget()) : nullptr;
+		if (!dw)
+			return setError(res, "no dock");
+		dw->show();
+		const QString dock = QString::fromUtf8(obs_data_get_string(req, "dock"));
+		dw->setFloating(dock != QLatin1String("docked"));
+		OutputDock::layoutPasses = 0;
+		ObsDisplayWidget::surfaceResizes = 0;
+		dw->resize((int)obs_data_get_int(req, "width"), (int)obs_data_get_int(req, "height"));
+		QElapsedTimer t;
+		t.start();
+		while (t.elapsed() < (qint64)std::max<long long>(50, obs_data_get_int(req, "settleMs")))
+			QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+		obs_data_set_int(res, "layoutPasses", OutputDock::layoutPasses.load());
+		obs_data_set_int(res, "surfaceResizes", ObsDisplayWidget::surfaceResizes.load());
+		obs_data_set_int(res, "dockWidth", g_dock->width());
+		obs_data_set_int(res, "dockHeight", g_dock->height());
+		obs_data_set_bool(res, "ok", true);
+	});
+}
+
 VENDOR_REQ(DockCapture)
 {
 	runBlocking([&]() {
@@ -581,6 +610,7 @@ static void registerVendor()
 	REG(EditorKey);
 	REG(EditorAction);
 	REG(DockCapture);
+	REG(DockResize);
 #undef REG
 	obs_log(LOG_INFO, "registered obs-websocket vendor 'output-mapping'");
 }

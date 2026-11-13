@@ -70,11 +70,17 @@ def main():
     ap.add_argument("--work", required=True)
     ap.add_argument("--minutes", type=float, default=10.0)
     ap.add_argument("--warmup", type=float, default=60.0, help="seconds before the memory baseline")
+    ap.add_argument("--port", type=int, default=at.DEFAULT_PORT)
+    ap.add_argument("--home", default=None, help="isolated OBS home (default: <work>/obs-home)")
+    ap.add_argument("--plugin", default=at.DEFAULT_PLUGIN)
     args = ap.parse_args()
     os.makedirs(args.work, exist_ok=True)
 
+    at.set_test_home(args.home or os.path.join(args.work, "obs-home"))
+    at.install_plugin(args.plugin)
+    at.reset_plugin_state()
     pw = secrets.token_urlsafe(24)
-    at.seed_config(4455, pw)
+    at.seed_config(args.port, pw)
     proc = at.launch_obs(args.obs_app, os.path.join(args.work, "soak-obs.log"))
     report = {"events": {}, "samples": [], "failures": [], "pixelChecks": 0}
     ev = report["events"]
@@ -85,7 +91,7 @@ def main():
 
     clean_exit = False
     try:
-        ws = obsws.connect(port=4455, password=pw, retries=90)
+        ws = obsws.connect(port=args.port, password=pw, retries=300)
         at.setup_obs(ws, args.work)
         ws.call("SetVideoSettings", {"baseWidth": 3840, "baseHeight": 1080, "outputWidth": 1920,
                                      "outputHeight": 540, "fpsNumerator": 60, "fpsDenominator": 1})

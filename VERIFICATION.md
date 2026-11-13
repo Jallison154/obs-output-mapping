@@ -74,6 +74,20 @@ PC (Windows) before an event: `python3 tools/soak_test.py … --minutes 30`.
 
 ## Bugs found by this verification and fixed
 
+0. **(0.5.1, reported on Windows.)** Resizing the Output Mapping dock could
+   make it flicker and crash OBS. The dock thumbnails were native video
+   windows (each with its own swapchain) inside a scroll area, and resized
+   themselves from their own resize handler, which can oscillate with a
+   Windows scrollbar; rapid or degenerate D3D11 swapchain resizes can leave
+   no render target. Fixed by (a) drawing dock thumbnails as plain widgets
+   from GPU-rendered images (~10 fps, double-buffered readback, no native
+   windows), (b) height-for-width layout with an always-visible scrollbar,
+   and (c) coalescing and validating every remaining swapchain resize
+   (editor previews, outputs: one resize after the size settles, never
+   below 2×2 px). Dock stress test (macOS, Windows-style scrollbars forced):
+   16 sizes down to 30×40, a 60-step rapid drag and 10 dock/float cycles:
+   0 swapchain resizes from the dock, 1 layout pass per tile, OBS responsive.
+
 1. **Restore recursion → crash on launch.** Resuming a saved fullscreen
    output re-scanned the screens, which resumed again, and so on until the
    stack overflowed. Fixed: rescanning never resumes, plus a re-entrancy
