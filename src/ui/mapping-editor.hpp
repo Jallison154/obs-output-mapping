@@ -59,6 +59,9 @@ public:
 	 * own draw path and composited in place. */
 	QImage captureImage();
 
+	/* Trigger a named editor action (automation; same code as the shortcut). */
+	bool triggerAction(const QString &name);
+
 protected:
 	void closeEvent(QCloseEvent *e) override;
 	void keyPressEvent(QKeyEvent *e) override;
@@ -80,6 +83,8 @@ private:
 	void populatePresetsMenu(QMenu *m);
 	void updatePresetsButton();
 	void showAbout();
+	void showShortcuts();
+	void requestIdentify(Identify mode);
 
 	void onTreeSelection();
 	void onTreeItemChanged(QTreeWidgetItem *item, int column);
@@ -121,6 +126,8 @@ private:
 	QCheckBox *sliceLocked_ = nullptr;
 	QPushButton *fitBtn_ = nullptr, *oneBtn_ = nullptr;
 	QAction *lockSliceAct_ = nullptr;
+	QAction *copyAct_ = nullptr, *cutAct_ = nullptr, *pasteAct_ = nullptr;
+	QAction *pastePosAct_ = nullptr, *pasteCropAct_ = nullptr;
 	QComboBox *sliceDisplay_ = nullptr;
 	QSpinBox *src_[4] = {};
 	QSpinBox *dst_[4] = {};
@@ -137,6 +144,8 @@ private:
 	QLabel *resLabel_ = nullptr;
 	QSpinBox *delaySpin_ = nullptr;
 	QLabel *delayInfo_ = nullptr;
+	QPushButton *patternBtn_ = nullptr, *outlinesBtn_ = nullptr;
+	QAction *clearIdentifyAct_ = nullptr;
 	QPushButton *fullscreenBtn_ = nullptr, *windowBtn_ = nullptr, *snapshotBtn_ = nullptr,
 		    *removeDisplayBtn_ = nullptr;
 	QLabel *noSelection_ = nullptr;

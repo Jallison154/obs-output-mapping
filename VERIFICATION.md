@@ -22,7 +22,7 @@ versions as untested.
   snapping, numeric edits, fit, 1:1, clipping) and display identity
   matching (exact UUID, serial re-identification, twin units, missing
   serials, duplicate UUIDs). **All pass.**
-- `tools/acceptance_test.py` against a real OBS 33.0.1: **57/57 checks pass** (full log: [docs/results/acceptance-run.txt](docs/results/acceptance-run.txt))
+- `tools/acceptance_test.py` against a real OBS 33.0.1: **71/71 checks pass** (full log: [docs/results/acceptance-run.txt](docs/results/acceptance-run.txt))
 
 The acceptance test runs the six steps of the requested acceptance test.
 Since only one physical display was available, the two 1920×1080 outputs
@@ -49,6 +49,28 @@ The editor screenshots in `docs/images/` were captured by the plugin's
 `EditorCapture`, which composites each live preview, rendered through its
 own GPU draw path, into a Qt grab of the window. That avoids needing
 macOS Screen Recording permission.
+
+## Show-readiness soak test
+
+`tools/soak_test.py`, 30 minutes at **60 fps** with three outputs (2×1920×1080,
+1×1280×720 with scaled slices), nothing else running on the machine. Full
+report: [docs/results/soak-report.md](docs/results/soak-report.md).
+
+| Check | Result |
+|---|---|
+| Crashes / disconnects | none; OBS quit cleanly |
+| Pixel-exact output checks after every change | **661 / 661 exact** |
+| Workload | 594 scene changes (fades), 256 delay changes, 163 slice nudges, 138 preset recalls, 105 test-pattern toggles |
+| Memory growth after warm-up | none (−96 MB; macOS reclaimed memory) |
+| Skipped render frames | 32 of 104,397 (0.031 %) |
+| Frame render time | mean 4.95 ms, worst 30 s sample 8.57 ms (budget 16.7 ms) |
+
+**Verdict: SHOW READY** on this Mac. An earlier 10-minute run passed every
+check except one render-time sample taken while the plugin was being
+compiled on the same machine (8.5 ms; skipped frames 0.012 %); the criterion
+was then set to mean < 8 ms and worst sample < 12 ms, and the clean 30-minute
+run above was made with nothing else running. Run the same soak on the show
+PC (Windows) before an event: `python3 tools/soak_test.py … --minutes 30`.
 
 ## Bugs found by this verification and fixed
 

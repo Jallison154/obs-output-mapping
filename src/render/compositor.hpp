@@ -47,6 +47,11 @@ void drawProgram(const ProgramFrame &pf, bool pointFilter);
  * projection must map display pixels). Bottom-most slice first. */
 void drawSlices(const ProgramFrame &pf, const RenderDisplay &rd);
 
+/* What a display shows right now, without delay: live slices, or the
+ * identify overlay (test pattern / slice outlines) when it is on. Used by
+ * the editor's Output Placement preview. Display-pixel coordinates. */
+void drawDisplayLive(const ProgramFrame &pf, const RenderDisplay &rd);
+
 /* Render a display into the current target sized cx x cy.
  * fit=false: stretch display pixels to the target (fullscreen: 1:1 when sizes match).
  * fit=true : letterbox, preserving aspect (windowed outputs). */

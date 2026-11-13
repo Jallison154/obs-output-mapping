@@ -2,9 +2,9 @@
     "display_name": "Output Mapping",
     "id": "com.okamidesigns.output-mapping",
     "name": "output-mapping",
-    "version": "0.4.0",
+    "version": "0.5.0",
     "description": "Slice the Program canvas onto multiple displays. By Okami Designs.",
-    "long_description": "Resolume-style advanced output for OBS Studio: draw slices on the live Program canvas, assign them to displays, and position each one independently. Copyright (C) 2026 Okami Designs. GPL-2.0-or-later.",
+    "long_description": "Multi-display output mapping for OBS Studio: draw slices on the live Program canvas, assign them to displays, and position each one independently. Copyright (C) 2026 Okami Designs. GPL-2.0-or-later.",
     "urls": {
         "repository": "https://github.com/Jallison154/obs-output-mapping",
         "website": "https://github.com/Jallison154/obs-output-mapping",

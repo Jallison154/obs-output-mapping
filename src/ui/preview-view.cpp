@@ -386,7 +386,7 @@ void PreviewView::renderFrame(uint32_t cx, uint32_t cy)
 				} else {
 					RenderDisplay rd;
 					if (RenderStore::instance().getDisplay(ov.displayId, rd))
-						gfx::drawSlices(pf, rd);
+						gfx::drawDisplayLive(pf, rd); /* incl. test pattern */
 				}
 			}
 			gs_projection_pop();
@@ -723,6 +723,14 @@ void PreviewView::wheelEvent(QWheelEvent *e)
 
 bool PreviewView::event(QEvent *e)
 {
+	if (e->type() == QEvent::KeyPress) {
+		auto *k = static_cast<QKeyEvent *>(e);
+		if (k->key() == Qt::Key_Tab || k->key() == Qt::Key_Backtab) {
+			const bool back = k->key() == Qt::Key_Backtab || (k->modifiers() & Qt::ShiftModifier);
+			Controller::instance()->cycleSlice(back ? -1 : 1);
+			return true;
+		}
+	}
 	if (e->type() == QEvent::NativeGesture) {
 		auto *g = static_cast<QNativeGestureEvent *>(e);
 		if (g->gestureType() == Qt::ZoomNativeGesture) {
@@ -777,7 +785,22 @@ void PreviewView::keyPressEvent(QKeyEvent *e)
 		else if (!c->selectedSlice().isEmpty())
 			c->deleteSlice(c->selectedSlice());
 		return;
+	case Qt::Key_BracketRight: /* bring forward */
+	case Qt::Key_BracketLeft:  /* send backward */
+		if (const DisplayMapping *d = c->doc().displayForSlice(c->selectedSlice())) {
+			const QString id = c->selectedSlice();
+			c->moveSlice(id, d->id, d->sliceIndex(id) + (e->key() == Qt::Key_BracketRight ? -1 : 1));
+		}
+		return;
+	case Qt::Key_H:
+		if (!c->selectedSlice().isEmpty())
+			c->toggleSliceVisible(c->selectedSlice());
+		return;
 	case Qt::Key_Escape:
+		if (drag_ == Drag::None && rubber_.empty()) {
+			c->select(c->selectedDisplay(), QString()); /* deselect */
+			return;
+		}
 		if (drag_ == Drag::Move || drag_ == Drag::Resize)
 			applyRect(dragSlice_, dragStartRect_);
 		drag_ = Drag::None;

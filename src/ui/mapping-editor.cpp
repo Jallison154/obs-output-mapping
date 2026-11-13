@@ -13,6 +13,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include "platform/platform.hpp"
 #include "render/compositor.hpp"
 #include "ui/preview-view.hpp"
+#include "ui/status-text.hpp"
 #include "ui/theme.hpp"
 
 #include <obs-frontend-api.h>
@@ -75,54 +76,6 @@ static QIcon dotIcon(const QColor &c, bool square = false)
 	else
 		p.drawEllipse(QRectF(8, 8, 12, 12));
 	return QIcon(pm);
-}
-
-static QColor statusColor(const DisplayStatus &st, DisplayKind kind)
-{
-	if (kind == DisplayKind::Virtual)
-		return QColor(theme::kMuted);
-	switch (st.match) {
-	case MatchStatus::Connected:
-	case MatchStatus::ConnectedSerial:
-		return QColor(theme::kOk);
-	case MatchStatus::Ambiguous:
-		return QColor(theme::kWarn);
-	case MatchStatus::Disconnected:
-		return QColor(theme::kLive);
-	default:
-		return QColor(theme::kMuted);
-	}
-}
-
-/* Short badge for the sidebar's second column. */
-static QString statusBadge(const DisplayStatus &st, DisplayKind kind, OutputMode m, QColor &color)
-{
-	if (m == OutputMode::Fullscreen) {
-		color = QColor(theme::kLive);
-		return QStringLiteral("● LIVE");
-	}
-	if (m == OutputMode::Window) {
-		color = QColor(theme::kAccent);
-		return QStringLiteral("WINDOW");
-	}
-	if (kind == DisplayKind::Virtual) {
-		color = QColor(theme::kMuted);
-		return QStringLiteral("VIRTUAL");
-	}
-	switch (st.match) {
-	case MatchStatus::Ambiguous:
-		color = QColor(theme::kWarn);
-		return QStringLiteral("CHECK");
-	case MatchStatus::Disconnected:
-		color = QColor(theme::kLive);
-		return QStringLiteral("OFFLINE");
-	case MatchStatus::Unassigned:
-		color = QColor(theme::kMuted);
-		return QStringLiteral("UNSET");
-	default:
-		color = QColor(theme::kOk);
-		return QStringLiteral("READY");
-	}
 }
 
 /* ---------------------------------------------------------------------- */
@@ -240,6 +193,12 @@ MappingEditor::MappingEditor(QWidget *parent) : QDialog(parent), c_(Controller::
 	});
 	connect(c_, &Controller::undoStateChanged, this, &MappingEditor::updateActions);
 	connect(c_, &Controller::presetsChanged, this, &MappingEditor::updatePresetsButton);
+	connect(c_, &Controller::identifyChanged, this, [this]() {
+		rebuildTree();
+		updateInspector();
+		updateHeaders();
+		updateStatusBar();
+	});
 
 	rebuildTree();
 	rebuildScreenCombo();
@@ -399,8 +358,26 @@ void MappingEditor::buildUi()
 		  c_->startAll();
 	  })->setToolTip(QStringLiteral("Start fullscreen on every display that is connected and identified"));
 	tb->addAction(QStringLiteral("■ Stop All"), this, [this]() {
+		  int live = 0;
+		  for (const DisplayMapping &d : c_->doc().displays)
+			  if (c_->outputMode(d.id) == OutputMode::Fullscreen)
+				  live++;
+		  if (live > 0) {
+			  QMessageBox box(QMessageBox::Warning, QStringLiteral("Stop All Outputs?"),
+					  QStringLiteral(
+						  "%1 fullscreen output(s) are live. Stopping them blacks out those "
+						  "screens.")
+						  .arg(live),
+					  QMessageBox::NoButton, this);
+			  QPushButton *stop = box.addButton(QStringLiteral("Stop All"), QMessageBox::DestructiveRole);
+			  box.addButton(QMessageBox::Cancel);
+			  box.setDefaultButton(QMessageBox::Cancel);
+			  box.exec();
+			  if (box.clickedButton() != stop)
+				  return;
+		  }
 		  c_->stopAll();
-	  })->setToolTip(QStringLiteral("Stop every output (fullscreen and windows)"));
+	  })->setToolTip(QStringLiteral("Stop every output (asks first if any are live)"));
 	tb->addSeparator();
 
 	undoAct_ = tb->addAction(QStringLiteral("Undo"), this, [this]() { c_->undo(); });
@@ -436,6 +413,44 @@ void MappingEditor::buildUi()
 		if (!id.isEmpty())
 			c_->setSliceLocked(id, !c_->isSliceLocked(id));
 	});
+	auto windowAction = [this](const char *name, const QString &text, const QKeySequence &keys) {
+		auto *a = new QAction(text, this);
+		a->setObjectName(QString::fromLatin1(name));
+		a->setShortcut(keys);
+		a->setShortcutContext(Qt::WindowShortcut);
+		addAction(a);
+		return a;
+	};
+	copyAct_ = windowAction("copy", QStringLiteral("Copy Slice"), QKeySequence::Copy);
+	connect(copyAct_, &QAction::triggered, this, [this]() { c_->copySlice(c_->selectedSlice()); });
+	cutAct_ = windowAction("cut", QStringLiteral("Cut Slice"), QKeySequence::Cut);
+	connect(cutAct_, &QAction::triggered, this, [this]() {
+		if (c_->isSliceLocked(c_->selectedSlice()))
+			statusLeft_->setText(QStringLiteral("🔒 Locked slices can't be cut. Use Copy instead."));
+		else
+			c_->cutSlice(c_->selectedSlice());
+	});
+	pasteAct_ = windowAction("paste", QStringLiteral("Paste Slice"), QKeySequence::Paste);
+	connect(pasteAct_, &QAction::triggered, this, [this]() {
+		if (c_->pasteSlice(c_->selectedDisplay()).isEmpty())
+			statusLeft_->setText(QStringLiteral("Nothing to paste: copy a slice first."));
+	});
+	pastePosAct_ = windowAction("pastePosition", QStringLiteral("Paste Position Only"),
+				    QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_V));
+	connect(pastePosAct_, &QAction::triggered, this, [this]() { c_->pasteSlicePosition(c_->selectedSlice()); });
+	pasteCropAct_ = windowAction("pasteCrop", QStringLiteral("Paste Crop Only"),
+				     QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_V));
+	connect(pasteCropAct_, &QAction::triggered, this, [this]() { c_->pasteSliceCrop(c_->selectedSlice()); });
+
+	auto *renameAct = windowAction("rename", QStringLiteral("Rename"), QKeySequence(Qt::Key_F2));
+	connect(renameAct, &QAction::triggered, this, [this]() {
+		QLineEdit *field = !c_->selectedSlice().isEmpty() ? sliceName_ : displayName_;
+		if (field && field->isVisible()) {
+			field->setFocus(Qt::ShortcutFocusReason);
+			field->selectAll();
+		}
+	});
+
 	delAct_ = tb->addAction(QStringLiteral("Delete"), this, [this]() { c_->deleteSlice(c_->selectedSlice()); });
 	tb->addSeparator();
 	fitAct_ = tb->addAction(QStringLiteral("Fit"), this, [this]() { c_->fitSliceToDisplay(c_->selectedSlice()); });
@@ -508,6 +523,10 @@ void MappingEditor::buildUi()
 	restoreAct_->setToolTip(QStringLiteral("Only onto displays identified exactly, never onto another screen"));
 	captureAct_->setToolTip(QStringLiteral("Display/window capture can't see the outputs, so Program can never "
 					       "contain its own output"));
+	optMenu->addSeparator();
+	clearIdentifyAct_ =
+		optMenu->addAction(QStringLiteral("Clear All Test Patterns"), this, [this]() { c_->clearIdentify(); });
+	optMenu->addAction(QStringLiteral("Keyboard Shortcuts…"), this, &MappingEditor::showShortcuts);
 	optMenu->addSeparator();
 	optMenu->addAction(QStringLiteral("About Output Mapping…"), this, &MappingEditor::showAbout);
 	optMenu->addAction(QStringLiteral("Open Settings Folder"), this, [this]() {
@@ -891,6 +910,23 @@ QWidget *MappingEditor::buildInspector()
 	delayInfo_->setWordWrap(true);
 	df->addRow(QStringLiteral("Delay"), delaySpin_);
 	df->addRow(QString(), delayInfo_);
+
+	patternBtn_ = new QPushButton(QStringLiteral("Test Pattern"), displayBox_);
+	patternBtn_->setCheckable(true);
+	patternBtn_->setToolTip(QStringLiteral("Show a calibration pattern on this output (edges, grid, corners, "
+					       "centre, name) with slice outlines, to check it fits the screen"));
+	outlinesBtn_ = new QPushButton(QStringLiteral("Slice Outlines"), displayBox_);
+	outlinesBtn_->setCheckable(true);
+	outlinesBtn_->setToolTip(
+		QStringLiteral("Draw each slice's outline and name over the live video on this output"));
+	auto *identRow = new QHBoxLayout();
+	identRow->addWidget(patternBtn_);
+	identRow->addWidget(outlinesBtn_);
+	df->addRow(QStringLiteral("Identify"), identRow);
+	connect(patternBtn_, &QPushButton::clicked, this,
+		[this](bool on) { requestIdentify(on ? Identify::Pattern : Identify::Off); });
+	connect(outlinesBtn_, &QPushButton::clicked, this,
+		[this](bool on) { requestIdentify(on ? Identify::Outlines : Identify::Off); });
 	df->addRow(btnGrid);
 	v->addWidget(displayBox_);
 	v->addStretch(1);
@@ -976,7 +1012,14 @@ void MappingEditor::rebuildTree()
 				       .arg(d.name)
 				       .arg(d.width)
 				       .arg(d.height)
-				       .arg(d.delayMs > 0 ? QStringLiteral("   ⏱ %1 ms").arg(d.delayMs) : QString()));
+				       .arg(QStringLiteral("%1%2")
+						    .arg(d.delayMs > 0 ? QStringLiteral("   ⏱ %1 ms").arg(d.delayMs)
+								       : QString())
+						    .arg(c_->identify(d.id) == Identify::Pattern
+								 ? QStringLiteral("   ⚠ PATTERN")
+							 : c_->identify(d.id) == Identify::Outlines
+								 ? QStringLiteral("   ⚠ OUTLINES")
+								 : QString())));
 		di->setIcon(0, dotIcon(m == OutputMode::Fullscreen ? QColor(theme::kLive) : statusColor(st, d.kind)));
 		QColor badgeColor;
 		di->setText(1, statusBadge(st, d.kind, m, badgeColor));
@@ -1150,6 +1193,16 @@ void MappingEditor::updateInspector()
 			delayInfo_->setVisible(true);
 		}
 
+		const Identify idm = c_->identify(d->id);
+		patternBtn_->setChecked(idm == Identify::Pattern);
+		outlinesBtn_->setChecked(idm == Identify::Outlines);
+		patternBtn_->setObjectName(idm == Identify::Pattern ? "Live" : "");
+		outlinesBtn_->setObjectName(idm == Identify::Outlines ? "Live" : "");
+		for (QPushButton *b : {patternBtn_, outlinesBtn_}) {
+			b->style()->unpolish(b);
+			b->style()->polish(b);
+		}
+
 		OutputMode m = c_->outputMode(d->id);
 		if (m == OutputMode::Fullscreen) {
 			fullscreenBtn_->setText(QStringLiteral("■ Stop Fullscreen"));
@@ -1226,6 +1279,11 @@ void MappingEditor::updateHeaders()
 			live = QStringLiteral("  <span style='color:%1'>● LIVE</span>").arg(theme::kLive);
 		else if (m == OutputMode::Window)
 			live = QStringLiteral("  <span style='color:%1'>◻ window</span>").arg(theme::kAccent);
+		if (c_->identify(d->id) != Identify::Off)
+			live += QStringLiteral("  <span style='color:%1'><b>● %2 ON OUTPUT</b></span>")
+					.arg(theme::kLive)
+					.arg(c_->identify(d->id) == Identify::Pattern ? "TEST PATTERN"
+										      : "SLICE OUTLINES");
 		if (d->delayMs > 0)
 			live += QStringLiteral(
 					"  <span style='color:%1'>⏱ output delayed %2 ms · preview is live</span>")
@@ -1252,6 +1310,10 @@ void MappingEditor::updateActions()
 	fitAct_->setEnabled(hasSlice && !locked);
 	oneAct_->setEnabled(hasSlice && !locked);
 	lockSliceAct_->setEnabled(hasSlice);
+	copyAct_->setEnabled(hasSlice);
+	cutAct_->setEnabled(hasSlice && !locked);
+	pastePosAct_->setEnabled(hasSlice && !locked);
+	pasteCropAct_->setEnabled(hasSlice && !locked);
 	lockSliceAct_->setText(locked ? QStringLiteral("Unlock Slice") : QStringLiteral("Lock Slice"));
 	undoAct_->setEnabled(c_->canUndo());
 	redoAct_->setEnabled(c_->canRedo());
@@ -1264,8 +1326,16 @@ void MappingEditor::updateStatusBar()
 	statusLeft_->setText(QStringLiteral("Drag on Input Selection to draw · arrows nudge (Shift ×10) · Space-drag "
 					    "pans · %1+scroll zooms · hold %2 to bypass snapping")
 				     .arg(modKeyName(), altKeyName()));
+	const int idc = c_->identifyCount();
 	statusRight_->setText(
-		QStringLiteral("Program %1×%2 · %3 output(s) running").arg(pw).arg(ph).arg(c_->activeOutputCount()));
+		QStringLiteral("Program %1×%2 · %3 output(s) running%4")
+			.arg(pw)
+			.arg(ph)
+			.arg(c_->activeOutputCount())
+			.arg(idc ? QStringLiteral(" · ⚠ test pattern on %1 output(s)").arg(idc) : QString()));
+	statusRight_->setStyleSheet(idc ? QStringLiteral("color:%1;").arg(theme::kLive) : QString());
+	if (clearIdentifyAct_)
+		clearIdentifyAct_->setEnabled(idc > 0);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -1304,6 +1374,12 @@ void MappingEditor::showTreeMenu(const QPoint &pos)
 		c_->selectSlice(id);
 		menu.addAction(QStringLiteral("Rename"), this, [this, it]() { tree_->editItem(it, 0); });
 		menu.addAction(QStringLiteral("Duplicate"), this, [this, id]() { c_->duplicateSlice(id); });
+		menu.addAction(copyAct_);
+		menu.addAction(cutAct_);
+		menu.addAction(pasteAct_);
+		menu.addAction(pastePosAct_);
+		menu.addAction(pasteCropAct_);
+		menu.addSeparator();
 		menu.addAction(QStringLiteral("Bring Forward"), this, [this]() { moveSelectedSlice(-1); });
 		menu.addAction(QStringLiteral("Send Backward"), this, [this]() { moveSelectedSlice(+1); });
 		QMenu *to = menu.addMenu(QStringLiteral("Move to Display"));
@@ -1326,6 +1402,7 @@ void MappingEditor::showTreeMenu(const QPoint &pos)
 		QString id = it->data(0, RoleId).toString();
 		c_->select(id, QString());
 		menu.addAction(QStringLiteral("Add Slice"), this, &MappingEditor::addSliceToSelected);
+		menu.addAction(pasteAct_);
 		menu.addAction(QStringLiteral("Lock All Slices"), this,
 			       [this, id]() { c_->setDisplayLocked(id, true); });
 		menu.addAction(QStringLiteral("Unlock All Slices"), this,
@@ -1516,6 +1593,74 @@ void MappingEditor::showAbout()
 		"<a href='https://github.com/Jallison154/obs-output-mapping'>github.com/Jallison154/obs-output-mapping</a>"));
 	box.setTextInteractionFlags(Qt::TextBrowserInteraction);
 	box.setStandardButtons(QMessageBox::Ok);
+	box.exec();
+}
+
+bool MappingEditor::triggerAction(const QString &name)
+{
+	QAction *a = findChild<QAction *>(name);
+	if (!a || !a->isEnabled())
+		return false;
+	a->trigger();
+	return true;
+}
+
+void MappingEditor::requestIdentify(Identify mode)
+{
+	const QString id = c_->selectedDisplay();
+	const DisplayMapping *d = c_->doc().display(id);
+	if (!d)
+		return;
+	if (mode != Identify::Off && c_->outputMode(id) == OutputMode::Fullscreen) {
+		QMessageBox box(QMessageBox::Warning, QStringLiteral("Take Over the Output?"),
+				QStringLiteral("“%1” is live. %2 will appear on that screen, in front of the audience, "
+					       "until you turn it off.")
+					.arg(d->name, mode == Identify::Pattern ? QStringLiteral("A test pattern")
+										: QStringLiteral("Slice outlines")),
+				QMessageBox::NoButton, this);
+		QPushButton *show = box.addButton(QStringLiteral("Show on Output"), QMessageBox::AcceptRole);
+		box.addButton(QMessageBox::Cancel);
+		box.setDefaultButton(QMessageBox::Cancel);
+		box.exec();
+		if (box.clickedButton() != show) {
+			updateInspector(); /* un-check the button */
+			return;
+		}
+	}
+	c_->setIdentify(id, mode);
+}
+
+void MappingEditor::showShortcuts()
+{
+	const QString m = modKeyName(), a = altKeyName();
+	auto row = [](const QString &k, const QString &v) {
+		return QStringLiteral("<tr><td style='padding:2px 14px 2px 0'><b>%1</b></td><td>%2</td></tr>").arg(k, v);
+	};
+	QString html = QStringLiteral("<table>");
+	html += row(m + QStringLiteral("+C / X / V"), QStringLiteral("Copy / cut / paste slice"));
+	html += row(m + QStringLiteral("+Shift+V"), QStringLiteral("Paste position only (output rect)"));
+	html += row(m + QStringLiteral("+") + a + QStringLiteral("+V"),
+		    QStringLiteral("Paste crop only (source rect)"));
+	html += row(m + QStringLiteral("+D"), QStringLiteral("Duplicate slice"));
+	html += row(m + QStringLiteral("+L"), QStringLiteral("Lock / unlock slice"));
+	html += row(m + QStringLiteral("+Z / ") + QKeySequence(QKeySequence::Redo).toString(QKeySequence::NativeText),
+		    QStringLiteral("Undo / redo"));
+	html += row(QStringLiteral("Delete / Backspace"), QStringLiteral("Delete slice"));
+	html += row(QStringLiteral("Arrows (Shift)"), QStringLiteral("Nudge 1 px (10 px) in the focused preview"));
+	html += row(QStringLiteral("Tab / Shift+Tab"), QStringLiteral("Next / previous slice"));
+	html += row(QStringLiteral("] / ["), QStringLiteral("Bring forward / send backward"));
+	html += row(QStringLiteral("H"), QStringLiteral("Show / hide slice"));
+	html += row(QStringLiteral("F2"), QStringLiteral("Rename"));
+	html += row(QStringLiteral("Esc"), QStringLiteral("Cancel drag, then deselect"));
+	html += row(QStringLiteral("F · 1 · + / −"), QStringLiteral("Fit view · 100% · zoom"));
+	html += row(QStringLiteral("Space-drag"), QStringLiteral("Pan"));
+	html += row(QStringLiteral("Hold ") + a, QStringLiteral("Bypass snapping while dragging"));
+	html += row(QStringLiteral("Hold Shift"), QStringLiteral("Toggle Keep Aspect while resizing"));
+	html += QStringLiteral("</table>");
+	QMessageBox box(this);
+	box.setWindowTitle(QStringLiteral("Keyboard Shortcuts"));
+	box.setTextFormat(Qt::RichText);
+	box.setText(html);
 	box.exec();
 }
 

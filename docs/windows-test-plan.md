@@ -41,6 +41,9 @@ pattern.png` (each pixel encodes its own coordinates).
 | C6 | Click on an output display, press Esc | Nothing happens (show-safe). Stop it from the editor instead |
 | C7 | Start fullscreen on the monitor OBS is on (confirm the prompt), click it, press Esc | It stops (escape hatch) |
 | C8 | Switch scenes with a Fade | Both outputs follow, including mid-fade |
+| C10 | Display panel ▸ Identify ▸ **Test Pattern** on each live display (confirm the prompt) | The red outermost line and the white second line are visible on all four edges. If not, the TV/projector is overscanning: turn on "Just Scan" / "1:1" / "Screen Fit" in its menu. The centre cross sits at the screen centre. Toggle off: video returns instantly |
+| C11 | **Slice Outlines** while live | Each slice's outline and name lines up with the content on the real screen |
+| C12 | Click **■ Stop All** with outputs live | A confirmation appears; Cancel keeps everything running |
 | C9 | Stream and record for 30 minutes with outputs live | No dropped frames attributable to outputs; render time in *Stats* stays reasonable |
 
 ## D. Failure handling
@@ -64,7 +67,11 @@ pattern.png` (each pixel encodes its own coordinates).
 | E2 | Draw, move and resize slices with snapping; hold Alt | Snaps to edges, centre and other slices; Alt bypasses |
 | E3 | Delete a slice with Del, then Ctrl+Z / Ctrl+Y | Comes back exactly / is removed again |
 | E4 | Drag a slice in the sidebar onto another display | It moves to that display, on top |
-| E5 | Type W/H values with Lock aspect on | The other value follows the aspect |
+| E5 | Type W/H values with Keep Aspect on | The other value follows the aspect |
+| E6 | Ctrl+C / Ctrl+V a slice; select another display and Ctrl+V | Same display: offset copy. Other display: same crop placed there |
+| E7 | Ctrl+Shift+V onto another slice | It takes the copied slice's exact output position |
+| E8 | Tab, ] / [, H, F2, Esc in a preview | Next slice, layer order, show/hide, rename, deselect |
+| E9 | Lock a slice, try to drag / nudge / delete it | Nothing moves; the status bar says it's locked |
 
 Report anything that fails with the OBS log
 (*Help ▸ Log Files ▸ Upload Current Log File*, or the file in

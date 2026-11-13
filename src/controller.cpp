@@ -11,6 +11,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include "controller.hpp"
 
 #include "render/compositor.hpp"
+#include "render/identify-image.hpp"
 #include "ui/output-window.hpp"
 
 #include <obs-frontend-api.h>
@@ -23,6 +24,8 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QApplication>
+#include <QClipboard>
+#include <QMimeData>
 #include <QDateTime>
 #include <QGuiApplication>
 #include <QJsonArray>
@@ -145,7 +148,7 @@ void Controller::changed(Change kind)
 		presetModified_ = true;
 		emit presetsChanged();
 	}
-	RenderStore::instance().publish(buildRenderState(doc_));
+	publishRender();
 	if (kind == Change::Structure)
 		recomputeStatuses();
 	if (loaded_)
@@ -278,7 +281,7 @@ void Controller::recomputeStatuses()
 	}
 
 	if (geometryUpdated) {
-		RenderStore::instance().publish(buildRenderState(doc_));
+		publishRender();
 		if (loaded_)
 			saveTimer_.start();
 	}
@@ -480,6 +483,160 @@ QString Controller::duplicateSlice(const QString &sliceId)
 	return s.id;
 }
 
+static const char *kSliceMime = "application/x-obs-output-mapping-slice";
+
+static QJsonObject sliceJson(const Slice &s, const QString &fromDisplay)
+{
+	auto r = [](const IRect &x) {
+		return QJsonObject{{"x", x.x}, {"y", x.y}, {"w", x.w}, {"h", x.h}};
+	};
+	return QJsonObject{{"format", "obs-output-mapping-slice"},
+			   {"name", s.name},
+			   {"color", s.color.name()},
+			   {"src", r(s.src)},
+			   {"dst", r(s.dst)},
+			   {"enabled", s.enabled},
+			   {"fromDisplay", fromDisplay}};
+}
+
+static bool clipboardSlice(Slice &out, QString &fromDisplay)
+{
+	const QMimeData *md = QGuiApplication::clipboard()->mimeData();
+	if (!md || !md->hasFormat(QString::fromLatin1(kSliceMime)))
+		return false;
+	QJsonObject o = QJsonDocument::fromJson(md->data(QString::fromLatin1(kSliceMime))).object();
+	if (o.value("format").toString() != QLatin1String("obs-output-mapping-slice"))
+		return false;
+	auto r = [](const QJsonValue &v) {
+		QJsonObject x = v.toObject();
+		return IRect{x.value("x").toInt(), x.value("y").toInt(), x.value("w").toInt(), x.value("h").toInt()};
+	};
+	out = Slice{};
+	out.name = o.value("name").toString(QStringLiteral("Slice"));
+	out.color = QColor(o.value("color").toString());
+	out.src = r(o.value("src"));
+	out.dst = r(o.value("dst"));
+	out.enabled = o.value("enabled").toBool(true);
+	fromDisplay = o.value("fromDisplay").toString();
+	return !out.src.empty() && !out.dst.empty();
+}
+
+void Controller::copySlice(const QString &sliceId)
+{
+	const Slice *s = doc_.slice(sliceId);
+	const DisplayMapping *d = doc_.displayForSlice(sliceId);
+	if (!s || !d)
+		return;
+	auto *md = new QMimeData();
+	const QByteArray json = QJsonDocument(sliceJson(*s, d->id)).toJson(QJsonDocument::Compact);
+	md->setData(QString::fromLatin1(kSliceMime), json);
+	md->setText(QStringLiteral("%1  source %2,%3 %4x%5  output %6,%7 %8x%9")
+			    .arg(s->name)
+			    .arg(s->src.x)
+			    .arg(s->src.y)
+			    .arg(s->src.w)
+			    .arg(s->src.h)
+			    .arg(s->dst.x)
+			    .arg(s->dst.y)
+			    .arg(s->dst.w)
+			    .arg(s->dst.h));
+	QGuiApplication::clipboard()->setMimeData(md);
+}
+
+bool Controller::cutSlice(const QString &sliceId)
+{
+	if (isSliceLocked(sliceId) || !doc_.slice(sliceId))
+		return false;
+	copySlice(sliceId);
+	deleteSlice(sliceId);
+	return true;
+}
+
+bool Controller::canPaste() const
+{
+	Slice s;
+	QString from;
+	return clipboardSlice(s, from);
+}
+
+QString Controller::pasteSlice(const QString &targetDisplayId)
+{
+	Slice s;
+	QString from;
+	if (!clipboardSlice(s, from))
+		return QString();
+	DisplayMapping *d = doc_.display(targetDisplayId.isEmpty() ? from : targetDisplayId);
+	if (!d && !doc_.displays.empty())
+		d = &doc_.displays.front();
+	if (!d)
+		return QString();
+	s.id = newId();
+	s.locked = false;
+	s.name = s.name + QStringLiteral(" copy");
+	s.color = sliceColorForIndex(totalSlices(doc_));
+	if (d->id == from) {
+		s.dst.x += 20; /* visible next to the original */
+		s.dst.y += 20;
+	} else if (s.dst.right() > d->width || s.dst.bottom() > d->height) {
+		IRect fit = defaultDestination(s.dst, d->width, d->height);
+		s.dst.w = fit.w;
+		s.dst.h = fit.h;
+		s.dst.x = std::clamp(s.dst.x, 0, std::max(0, d->width - s.dst.w));
+		s.dst.y = std::clamp(s.dst.y, 0, std::max(0, d->height - s.dst.h));
+	}
+	d->slices.insert(d->slices.begin(), s); /* on top */
+	QString did = d->id;
+	changed(Change::Structure);
+	select(did, s.id);
+	return s.id;
+}
+
+bool Controller::pasteSliceCrop(const QString &sliceId)
+{
+	Slice c;
+	QString from;
+	Slice *s = doc_.slice(sliceId);
+	if (!s || s->locked || !clipboardSlice(c, from))
+		return false;
+	setSliceSrc(sliceId, c.src);
+	return true;
+}
+
+bool Controller::pasteSlicePosition(const QString &sliceId)
+{
+	Slice c;
+	QString from;
+	Slice *s = doc_.slice(sliceId);
+	if (!s || s->locked || !clipboardSlice(c, from))
+		return false;
+	setSliceDst(sliceId, c.dst);
+	return true;
+}
+
+void Controller::cycleSlice(int direction)
+{
+	/* Order: sidebar order, across displays. */
+	std::vector<std::pair<QString, QString>> all;
+	for (const auto &d : doc_.displays)
+		for (const auto &s : d.slices)
+			all.push_back({d.id, s.id});
+	if (all.empty())
+		return;
+	int cur = -1;
+	for (int i = 0; i < (int)all.size(); i++)
+		if (all[(size_t)i].second == selSlice_)
+			cur = i;
+	int n = (int)all.size();
+	int next = cur < 0 ? (direction > 0 ? 0 : n - 1) : ((cur + direction) % n + n) % n;
+	select(all[(size_t)next].first, all[(size_t)next].second);
+}
+
+void Controller::toggleSliceVisible(const QString &sliceId)
+{
+	if (const Slice *s = doc_.slice(sliceId))
+		setSliceEnabled(sliceId, !s->enabled);
+}
+
 bool Controller::isSliceLocked(const QString &sliceId) const
 {
 	const Slice *s = doc_.slice(sliceId);
@@ -642,7 +799,7 @@ void Controller::restoreSnapshot(const MappingDocument &d)
 	for (const QString &id : outputs_.keys())
 		if (!doc_.display(id))
 			stopOutput(id, false);
-	RenderStore::instance().publish(buildRenderState(doc_));
+	publishRender();
 	recomputeStatuses();
 	saveTimer_.start();
 	emit documentChanged(Change::Structure);
@@ -853,6 +1010,64 @@ bool Controller::importLayout(const QString &path, QString *error)
 	if (!parseLayout(f.readAll(), d, error))
 		return false;
 	return applyLayout(d, QString());
+}
+
+void Controller::publishRender()
+{
+	auto st = std::const_pointer_cast<RenderState>(buildRenderState(doc_));
+	for (auto it = identify_.begin(); it != identify_.end();) {
+		const DisplayMapping *d = doc_.display(it.key());
+		if (!d || it.value() == Identify::Off) {
+			it = identify_.erase(it); /* display gone or turned off */
+			continue;
+		}
+		RenderDisplay &rd = st->displays[d->id.toStdString()];
+		rd.identify = (int)it.value();
+		rd.identifyImage = std::make_shared<const QImage>(
+			it.value() == Identify::Pattern ? makeTestPattern(*d) : makeOutlineOverlay(*d));
+		if (it.value() == Identify::Pattern) {
+			/* The preview's clean pattern only depends on name and size. */
+			const QString key = QStringLiteral("%1|%2x%3").arg(d->name).arg(d->width).arg(d->height);
+			auto &cached = previewPatterns_[d->id];
+			if (cached.first != key || !cached.second)
+				cached = {key, std::make_shared<const QImage>(makeTestPattern(*d, false))};
+			rd.identifyPreviewImage = cached.second;
+		}
+		++it;
+	}
+	RenderStore::instance().publish(st);
+}
+
+void Controller::setIdentify(const QString &displayId, Identify mode)
+{
+	const DisplayMapping *d = doc_.display(displayId);
+	if (!d || identify(displayId) == mode)
+		return;
+	if (mode == Identify::Off)
+		identify_.remove(displayId);
+	else
+		identify_.insert(displayId, mode);
+	blog(LOG_INFO, "[output-mapping] '%s' identify: %s", qPrintable(d->name),
+	     mode == Identify::Pattern    ? "test pattern"
+	     : mode == Identify::Outlines ? "slice outlines"
+					  : "off");
+	publishRender();
+	emit identifyChanged();
+}
+
+int Controller::identifyCount() const
+{
+	return (int)identify_.size();
+}
+
+void Controller::clearIdentify()
+{
+	if (identify_.isEmpty())
+		return;
+	identify_.clear();
+	blog(LOG_INFO, "[output-mapping] all identify overlays cleared");
+	publishRender();
+	emit identifyChanged();
 }
 
 void Controller::setRestoreOutputs(bool on)
@@ -1142,7 +1357,7 @@ void Controller::load()
 	}
 	rescanScreens();
 	committed_ = doc_;
-	RenderStore::instance().publish(buildRenderState(doc_));
+	publishRender();
 	emit documentChanged(Change::Structure);
 	loaded_ = true; /* outputs are restored later by restoreOutputsOnStartup() */
 	if (!doc_.displays.empty())
@@ -1174,6 +1389,8 @@ QJsonObject Controller::stateJson() const
 		d["status"] = QString::fromLatin1(matchStatusName(st.match));
 		d["statusText"] = st.text;
 		d["canFullscreen"] = st.canFullscreen;
+		const Identify idm = identify(id);
+		d["identify"] = idm == Identify::Pattern ? "pattern" : idm == Identify::Outlines ? "outlines" : "off";
 		OutputMode m = outputMode(id);
 		d["output"] = m == OutputMode::Fullscreen ? "fullscreen" : m == OutputMode::Window ? "window" : "none";
 		ds[i] = d;

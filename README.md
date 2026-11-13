@@ -1,7 +1,7 @@
 # Output Mapping for OBS Studio
 
-A native OBS Studio plugin that gives OBS a workflow like Resolume Arena's
-*Advanced Output*. Draw **slices** on the live Program canvas, assign each
+A native OBS Studio plugin for multi-display output mapping. Draw
+**slices** on the live Program canvas, assign each
 slice to a display (HDMI output), and independently adjust **which part of
 Program it grabs** (Input Selection) and **where it lands on the display**
 (Output Placement). Every mapped output follows Program live, including
@@ -33,6 +33,17 @@ is the place they would go).
 
 ## Features
 
+- **Output Mapping dock** in the main OBS window (OBS ▸ *Docks ▸ Output
+  Mapping*; shown automatically the first time): a confidence monitor with a
+  live thumbnail of exactly what each display receives (including delay and
+  test patterns), its status (LIVE / WINDOW / READY / OFFLINE / CHECK /
+  VIRTUAL), ⏱ delay and ⚠ test-pattern markers, per-display **Fullscreen**,
+  **Window** and **Clear Pattern** buttons, plus **Start All**, **Stop All**
+  (asks first when live) and **Editor…**. "Live previews" pauses the
+  thumbnails if you need to save GPU; outputs are unaffected.
+
+  ![Output Mapping dock](docs/images/dock.png)
+
 - **One editor window** (Tools ▸ *Output Mapping…*): a display and slice
   sidebar, plus two synchronized live previews side by side.
   - **Input Selection** shows the live Program canvas. Click and drag to draw a
@@ -59,6 +70,29 @@ is the place they would go).
     bottom). *Auto* (default) stacks them when the Program canvas is wider
     than 2:1, which on 3840×1080 more than doubles each preview's size. The
     choice is remembered.
+  - **Keyboard commands** (Ctrl on Windows, ⌘ on Mac; full list under
+    *Options ▸ Keyboard Shortcuts*): **Copy / Cut / Paste** slices
+    (pasting on the same display offsets the copy; on another display it
+    keeps the crop), **Paste Position Only** (Ctrl+Shift+V) and **Paste
+    Crop Only** (Ctrl+Alt+V) to line slices up exactly, **Tab / Shift+Tab**
+    next / previous slice, **] / [** bring forward / send backward, **H**
+    show / hide, **F2** rename, **Esc** deselect. Copied slices go to the
+    system clipboard, so they paste across presets and OBS sessions.
+  - **Identify on the real output** (display panel ▸ *Identify*):
+    - **Test Pattern** replaces the output with a calibration image: red
+      outermost pixel row and white second row on every edge (if either is
+      missing on the screen, it is cropping), 100 px grid with pixel rulers,
+      corner markers, centre cross, display name and resolution, and every
+      slice's outline at its exact position.
+    - **Slice Outlines** draws each slice's outline and name over the live
+      video, so you can line it up on the actual screen.
+    - Output Placement shows the test pattern too, with the editor's
+      draggable outlines on top, so you can fit slices against it.
+    - If the display is live, it asks first ("this will take over what the
+      audience sees"). A red **ON OUTPUT** badge shows in the sidebar and
+      header while it's on, and *Options ▸ Clear All Test Patterns* turns
+      every one off. Identify is never saved: OBS always starts with it
+      off. It ignores the output delay so you see changes instantly.
   - **Lock slices** that are set up correctly: tick **🔒 Locked** in the
     slice panel, press Ctrl/⌘+L, or right-click it (or *Lock All Slices* on
     a display). A locked slice can still be selected and inspected, but it
@@ -98,6 +132,8 @@ is the place they would go).
   - **Open Window**: a windowed output for testing, or for *virtual* displays
     (a fixed resolution with no monitor attached).
   - **Save Snapshot…**: renders exactly what the display receives to a PNG.
+  - **Stop All asks first** when fullscreen outputs are live, so one stray
+    click can't black out a show.
   - Hotkeys (Settings ▸ Hotkeys): *Start all fullscreen outputs*, *Stop all
     outputs*, *Open editor*. Also Tools ▸ *Output Mapping: Stop All
     Outputs*.
@@ -272,6 +308,16 @@ mkdir -p ~/Library/Application\ Support/obs-studio/plugins && ditto ~/Library/Ca
 
 ### Tests
 
+- **Show-readiness soak test** (`tools/soak_test.py`): runs OBS at 60 fps
+  with three outputs for a set time while changing scenes with fades every
+  3 s, delay every 7 s, presets every 13 s, test patterns every 17 s and
+  nudging slices. It checks every output pixel-exact after each change and
+  tracks OBS memory, render time and skipped frames:
+
+  ```bash
+  python3 tools/soak_test.py --obs-app /Applications/OBS.app --work /tmp/omsoak --minutes 30
+  ```
+
 - Core unit tests (geometry, display identity rules):
   `output-mapping-core-tests` (built with the plugin).
 - End-to-end acceptance test against a real OBS. It uses obs-websocket
@@ -344,6 +390,7 @@ Vendor name `output-mapping`, called via `CallVendorRequest`:
 | `Undo` / `Redo` | – | Same as the editor buttons |
 | `ListPresets` / `SavePreset` / `LoadPreset` / `DeletePreset` | `{name}` | Layout presets, e.g. recall from a Stream Deck |
 | `SetDelay` | `{displayName, delayMs}` | Per-output video delay (0 = live); changes ramp smoothly |
+| `SetIdentify` | `{displayName, mode: pattern / outlines / off}` or `{mode: clear}` | Test pattern / slice outlines on an output |
 | `SetSliceLocked` | `{sliceName` or `sliceId, locked}` | Lock or unlock a slice |
 | `Snapshot` | `{displayName, path}` | Render exactly what the display receives to `.png` / `.ppm` |
 | `OpenEditor` / `CloseEditor` / `Select` | … | Editor control |

@@ -14,6 +14,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include "core/display-match.hpp"
 
 #include <QColor>
+#include <QImage>
 #include <QJsonObject>
 #include <QString>
 
@@ -94,6 +95,11 @@ struct RenderDisplay {
 	int width = 0, height = 0;
 	int delayMs = 0;
 	std::vector<RenderSlice> slices; /* bottom-most first (draw order) */
+	/* Identify overlay (never saved): 0 off, 1 test pattern (replaces the
+	 * video), 2 slice outlines (drawn over live video). Bypasses delay. */
+	int identify = 0;
+	std::shared_ptr<const QImage> identifyImage;
+	std::shared_ptr<const QImage> identifyPreviewImage; /* pattern without slice outlines */
 };
 
 struct RenderState {

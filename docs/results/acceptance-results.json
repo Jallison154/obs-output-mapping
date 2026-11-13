@@ -105,7 +105,7 @@
     "detail": "(202, 180, 200)"
   },
   {
-    "check": "Delayed HDMI-2 still shows Scene A 209 ms after the cut",
+    "check": "Delayed HDMI-2 still shows Scene A 221 ms after the cut",
     "pass": true,
     "detail": "(216, 132, 112)"
   },
@@ -117,15 +117,75 @@
   {
     "check": "Changing delay 500 -> 300 ms live never shows black",
     "pass": true,
-    "detail": "0 black of 24 frames sampled"
+    "detail": "0 black of 25 frames sampled"
   },
   {
     "check": "Turning delay off never shows black",
     "pass": true,
-    "detail": "0 black of 24 frames sampled"
+    "detail": "0 black of 25 frames sampled"
   },
   {
     "check": "After turning delay off, HDMI-2 is live and pixel-exact",
+    "pass": true,
+    "detail": "mismatches=0"
+  },
+  {
+    "check": "Paste onto the same display: offset copy, same crop",
+    "pass": true,
+    "detail": "HDMI-2 [220, 120, 1920, 1080]"
+  },
+  {
+    "check": "Paste Position Only copies the output rect exactly",
+    "pass": true,
+    "detail": "[200, 100, 1920, 1080]"
+  },
+  {
+    "check": "Undo removes the pasted slice",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "check": "Paste onto another display keeps the crop",
+    "pass": true,
+    "detail": "HDMI-1 [1920, 0, 1920, 1080]"
+  },
+  {
+    "check": "Tab moves to the next slice",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "check": "Test pattern on HDMI-2",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "check": "Test pattern: outermost pixels red on every edge",
+    "pass": true,
+    "detail": "[(255, 40, 40), (255, 40, 40), (255, 40, 40), (255, 40, 40), (255, 40, 40)]"
+  },
+  {
+    "check": "Test pattern: second pixel row white (edge-crop check)",
+    "pass": true,
+    "detail": "(255, 255, 255) (255, 255, 255)"
+  },
+  {
+    "check": "Test pattern replaces the video",
+    "pass": true,
+    "detail": "(48, 50, 58)"
+  },
+  {
+    "check": "Slice outlines: display edge marked",
+    "pass": true,
+    "detail": "(255, 196, 66)"
+  },
+  {
+    "check": "Slice outlines: live video still visible inside the slice",
+    "pass": true,
+    "detail": "(172, 218, 152)"
+  },
+  {
+    "check": "Identify off: output back to exact video",
     "pass": true,
     "detail": "mismatches=0"
   },
@@ -225,6 +285,11 @@
     "detail": "Display is ambiguous. Reassign it before starting fullscreen."
   },
   {
+    "check": "OBS dock shows one live tile per display",
+    "pass": true,
+    "detail": "tiles=5 displays=5 visible=True"
+  },
+  {
     "check": "Borderless fullscreen opens on the built-in display",
     "pass": true,
     "detail": ""
@@ -253,6 +318,11 @@
     "check": "Display names / kinds persisted",
     "pass": true,
     "detail": "['HDMI-1', 'HDMI-2', 'Missing HDMI', 'Twin Display', 'Built-in']"
+  },
+  {
+    "check": "Test pattern is never restored after restart (always starts off)",
+    "pass": true,
+    "detail": ""
   },
   {
     "check": "Missing display shown as disconnected after restart",

@@ -382,6 +382,59 @@ def phase_mapping(ws, work, fullscreen_builtin):
     ws.call("SetCurrentSceneTransitionDuration", {"transitionDuration": 1500})
     time.sleep(0.5)
 
+    # Copy / paste (same code paths as the keyboard shortcuts).
+    def names(st):
+        return [s["name"] for d in st["displays"] for s in d["slices"]]
+    ws.vendor("Select", {"sliceName": "Slice 2"})
+    ws.vendor("EditorAction", {"name": "copy"})
+    r = ws.vendor("EditorAction", {"name": "paste"})
+    dc, cp = slice_by_name(r["state"], "Slice 2 copy")
+    _, orig = slice_by_name(r["state"], "Slice 2")
+    check("Paste onto the same display: offset copy, same crop",
+          dc["name"] == "HDMI-2" and cp["src"] == orig["src"]
+          and rl(cp["dst"])[:2] == [rl(orig["dst"])[0] + 20, rl(orig["dst"])[1] + 20],
+          f"{dc['name']} {rl(cp['dst'])}")
+    r = ws.vendor("EditorAction", {"name": "pastePosition"})
+    _, cp2 = slice_by_name(r["state"], "Slice 2 copy")
+    check("Paste Position Only copies the output rect exactly", cp2["dst"] == orig["dst"], str(rl(cp2["dst"])))
+    ws.vendor("Undo"); ws.vendor("Undo")
+    check("Undo removes the pasted slice", "Slice 2 copy" not in names(state(ws)))
+    ws.vendor("Select", {"displayName": "HDMI-1"})
+    r = ws.vendor("EditorAction", {"name": "paste"})
+    dc, cp = slice_by_name(r["state"], "Slice 2 copy")
+    check("Paste onto another display keeps the crop", dc["name"] == "HDMI-1" and cp["src"] == orig["src"],
+          f"{dc['name']} {rl(cp['src'])}")
+    ws.vendor("Undo")
+    ws.vendor("Select", {"sliceName": "Slice 1"})
+    r = ws.vendor("EditorKey", {"view": "output", "key": 0x01000001})  # Tab
+    check("Tab moves to the next slice", r["state"]["selectedSlice"] != slice_by_name(r["state"], "Slice 1")[1]["id"])
+
+    # Identify: test pattern and outlines on the real output, instantly.
+    r = ws.vendor("SetIdentify", {"displayName": "HDMI-2", "mode": "pattern"})
+    check("Test pattern on HDMI-2", disp(r["state"], "HDMI-2")["identify"] == "pattern")
+    time.sleep(0.3)
+    p = snapshot(ws, "HDMI-2", os.path.join(work, "identify_pattern.ppm"))
+    near = lambda a, b: max(abs(x - y) for x, y in zip(a, b)) <= 3
+    edges = [pixel(p, 0, 0), pixel(p, 1919, 0), pixel(p, 0, 1079), pixel(p, 1919, 1079), pixel(p, 960, 0)]
+    check("Test pattern: outermost pixels red on every edge", all(near(e, (255, 40, 40)) for e in edges), str(edges))
+    check("Test pattern: second pixel row white (edge-crop check)",
+          near(pixel(p, 960, 1), (255, 255, 255)) and near(pixel(p, 1, 540), (255, 255, 255)),
+          f"{pixel(p, 960, 1)} {pixel(p, 1, 540)}")
+    check("Test pattern replaces the video", pixel(p, 1500, 900) != pattern_pixel(1920 + 1300, 800, TAG_A),
+          str(pixel(p, 1500, 900)))
+    ws.vendor("SetIdentify", {"displayName": "HDMI-2", "mode": "outlines"})
+    time.sleep(0.3)
+    p = snapshot(ws, "HDMI-2", os.path.join(work, "identify_outlines.ppm"))
+    check("Slice outlines: display edge marked", near(pixel(p, 0, 540), (255, 196, 66)), str(pixel(p, 0, 540)))
+    check("Slice outlines: live video still visible inside the slice",
+          max(abs(a - b) for a, b in zip(pixel(p, 1500, 600), pattern_pixel(1920 + 1300, 500, TAG_A))) <= 40,
+          str(pixel(p, 1500, 600)))
+    ws.vendor("SetIdentify", {"displayName": "HDMI-2", "mode": "off"})
+    time.sleep(0.3)
+    p = snapshot(ws, "HDMI-2", os.path.join(work, "identify_off.ppm"))
+    r = compare(p, expect_crop(1920, 0, 200, 100, TAG_A), step=4)
+    check("Identify off: output back to exact video", r[0] == 0, f"mismatches={r[0]}")
+
     # Slice locking: a locked slice can't be dragged, nudged or deleted.
     ws.vendor("Select", {"sliceName": "Slice 1"})
     _, before = slice_by_name(state(ws), "Slice 1")
@@ -508,6 +561,14 @@ def phase_mapping(ws, work, fullscreen_builtin):
     r = ws.vendor("StartFullscreen", {"displayName": "Twin Display"})
     check("StartFullscreen refused on ambiguous display", not r.get("ok"), r.get("error", ""))
 
+    # OBS dock: one live tile per display.
+    time.sleep(0.5)  # the dock coalesces bursts of changes (50 ms)
+    st = state(ws)
+    r = ws.vendor("DockCapture", {"path": os.path.join(work, "dock.png")})
+    check("OBS dock shows one live tile per display", r.get("ok") and r.get("tiles") == len(st["displays"]),
+          f"tiles={r.get('tiles')} displays={len(st['displays'])} visible={r.get('visible')}")
+
+    ws.vendor("SetIdentify", {"displayName": "HDMI-2", "mode": "pattern"})  # must NOT survive a restart
     if fullscreen_builtin:
         r = ws.vendor("StartFullscreen", {"displayName": "Built-in"})
         check("Borderless fullscreen opens on the built-in display", r.get("ok"), r.get("error", ""))
@@ -532,6 +593,8 @@ def phase_restart(ws, s1b, s2b, fullscreen_builtin):
     check("Display names / kinds persisted",
           [d["name"] for d in st["displays"]][:4] == ["HDMI-1", "HDMI-2", "Missing HDMI", "Twin Display"],
           str([d["name"] for d in st["displays"]]))
+    check("Test pattern is never restored after restart (always starts off)",
+          all(d.get("identify", "off") == "off" for d in st["displays"]))
     m = disp(st, "Missing HDMI")
     check("Missing display shown as disconnected after restart", m["status"] == "disconnected", m["statusText"])
     check("Missing display was NOT opened anywhere (wanted output held back)", m["output"] == "none"

@@ -34,6 +34,9 @@ struct DisplayStatus {
 	bool canFullscreen = false;
 };
 
+/* Identify overlay on an output (never saved: always off after restart). */
+enum class Identify { Off = 0, Pattern = 1, Outlines = 2 };
+
 enum class Change {
 	Structure, /* displays/slices added, removed, renamed, reordered, reassigned */
 	Geometry,  /* slice rectangles / display size only */
@@ -79,6 +82,20 @@ public:
 	/* -- slice mutations -- */
 	QString createSlice(const QString &displayId, const IRect &src);
 	QString duplicateSlice(const QString &sliceId);
+
+	/* -- clipboard (system clipboard, private MIME type) -- */
+	void copySlice(const QString &sliceId);
+	bool cutSlice(const QString &sliceId); /* refused for locked slices */
+	bool canPaste() const;
+	/* Paste onto a display: same display -> offset copy; other display ->
+	 * same crop, placement kept on that display. Returns the new id. */
+	QString pasteSlice(const QString &targetDisplayId);
+	bool pasteSliceCrop(const QString &sliceId);     /* source rect only */
+	bool pasteSlicePosition(const QString &sliceId); /* output rect only */
+
+	/* -- keyboard helpers -- */
+	void cycleSlice(int direction); /* next / previous slice */
+	void toggleSliceVisible(const QString &sliceId);
 	void deleteSlice(const QString &sliceId);
 	void renameSlice(const QString &sliceId, const QString &name);
 	void setSliceEnabled(const QString &sliceId, bool enabled);
@@ -125,6 +142,12 @@ public:
 	OutputMode outputMode(const QString &displayId) const;
 	int activeOutputCount() const { return (int)outputs_.size(); }
 
+	/* -- identify (test pattern / slice outlines on the real output) -- */
+	void setIdentify(const QString &displayId, Identify mode);
+	Identify identify(const QString &displayId) const { return identify_.value(displayId, Identify::Off); }
+	int identifyCount() const;
+	void clearIdentify();
+
 	/* Offscreen render of exactly what the display receives. */
 	QImage snapshot(const QString &displayId, QString *error = nullptr);
 
@@ -145,6 +168,7 @@ signals:
 	void programSizeChanged();
 	void undoStateChanged();
 	void presetsChanged();
+	void identifyChanged();
 
 private:
 	explicit Controller(QObject *parent = nullptr);
@@ -177,6 +201,9 @@ private:
 	 * session only: mapping id -> OS screen id (cleared on disconnect). */
 	QHash<QString, QString> sessionConfirmed_;
 	QString currentPreset_;
+	QHash<QString, Identify> identify_;
+	QHash<QString, std::pair<QString, std::shared_ptr<const QImage>>> previewPatterns_; /* key -> image */
+	void publishRender(); /* document + identify overlays -> graphics thread */
 	bool presetModified_ = false;
 	QString presetPath(const QString &name) const;
 };

@@ -27,11 +27,23 @@ Setting up OBS: 3840x1080 canvas, two test-pattern scenes, Fade transition
   [PASS] Set 500 ms delay on HDMI-2
   [PASS] Turning delay on never shows black (smooth ramp) — 0 black of 36 frames sampled
   [PASS] Undelayed HDMI-1 switched to Scene B immediately — (202, 180, 200)
-  [PASS] Delayed HDMI-2 still shows Scene A 209 ms after the cut — (216, 132, 112)
+  [PASS] Delayed HDMI-2 still shows Scene A 221 ms after the cut — (216, 132, 112)
   [PASS] Delayed HDMI-2 shows Scene B after the delay, pixel-exact — mismatches=0
-  [PASS] Changing delay 500 -> 300 ms live never shows black — 0 black of 24 frames sampled
-  [PASS] Turning delay off never shows black — 0 black of 24 frames sampled
+  [PASS] Changing delay 500 -> 300 ms live never shows black — 0 black of 25 frames sampled
+  [PASS] Turning delay off never shows black — 0 black of 25 frames sampled
   [PASS] After turning delay off, HDMI-2 is live and pixel-exact — mismatches=0
+  [PASS] Paste onto the same display: offset copy, same crop — HDMI-2 [220, 120, 1920, 1080]
+  [PASS] Paste Position Only copies the output rect exactly — [200, 100, 1920, 1080]
+  [PASS] Undo removes the pasted slice
+  [PASS] Paste onto another display keeps the crop — HDMI-1 [1920, 0, 1920, 1080]
+  [PASS] Tab moves to the next slice
+  [PASS] Test pattern on HDMI-2
+  [PASS] Test pattern: outermost pixels red on every edge — [(255, 40, 40), (255, 40, 40), (255, 40, 40), (255, 40, 40), (255, 40, 40)]
+  [PASS] Test pattern: second pixel row white (edge-crop check) — (255, 255, 255) (255, 255, 255)
+  [PASS] Test pattern replaces the video — (48, 50, 58)
+  [PASS] Slice outlines: display edge marked — (255, 196, 66)
+  [PASS] Slice outlines: live video still visible inside the slice — (172, 218, 152)
+  [PASS] Identify off: output back to exact video — mismatches=0
   [PASS] Lock Slice 1
   [PASS] Locked slice ignores drags, nudges and Delete — [100, 50, 1920, 1080] [0, 0, 1920, 1080]
   [PASS] Unlocked slice can be edited again — [1, 0, 1920, 1080]
@@ -53,6 +65,7 @@ Setting up OBS: 3840x1080 canvas, two test-pattern scenes, Fade transition
   [PASS] Same-model display without serial/UUID reports 'ambiguous' — Ambiguous identity · reassign
   [PASS] StartFullscreen refused on disconnected display — Display is disconnected. Reassign it before starting fullscreen.
   [PASS] StartFullscreen refused on ambiguous display — Display is ambiguous. Reassign it before starting fullscreen.
+  [PASS] OBS dock shows one live tile per display — tiles=5 displays=5 visible=True
   [PASS] Borderless fullscreen opens on the built-in display
   [PASS] Fullscreen output stays up (placement watchdog is satisfied) — output=fullscreen
 
@@ -65,6 +78,7 @@ Restarting OBS…
   [PASS] Slice 1 lock persisted across restart
   [PASS] Slice 2 persisted (src+dst) — {'h': 1080, 'w': 1920, 'x': 1920, 'y': 0} {'h': 1080, 'w': 1920, 'x': 200, 'y': 100}
   [PASS] Display names / kinds persisted — ['HDMI-1', 'HDMI-2', 'Missing HDMI', 'Twin Display', 'Built-in']
+  [PASS] Test pattern is never restored after restart (always starts off)
   [PASS] Missing display shown as disconnected after restart — Disconnected
   [PASS] Missing display was NOT opened anywhere (wanted output held back) — output=none outputWanted=True
   [PASS] Ambiguous display not opened — ambiguous output=none
@@ -73,5 +87,5 @@ Restarting OBS…
   [PASS] No fullscreen output on any unidentified display — ['Built-in']
   OBS exited cleanly
 
-57/57 checks passed
+71/71 checks passed
 EXIT 0

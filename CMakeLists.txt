@@ -53,14 +53,19 @@ target_sources(
     src/platform/platform.hpp
     src/render/compositor.cpp
     src/render/compositor.hpp
+    src/render/identify-image.cpp
+    src/render/identify-image.hpp
     src/ui/obs-display-widget.cpp
     src/ui/obs-display-widget.hpp
+    src/ui/output-dock.cpp
+    src/ui/output-dock.hpp
     src/ui/output-window.cpp
     src/ui/output-window.hpp
     src/ui/preview-view.cpp
     src/ui/preview-view.hpp
     src/ui/mapping-editor.cpp
     src/ui/mapping-editor.hpp
+    src/ui/status-text.hpp
     src/ui/theme.hpp
 )
 

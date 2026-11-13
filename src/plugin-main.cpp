@@ -14,11 +14,13 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include "controller.hpp"
 #include "render/compositor.hpp"
 #include "ui/mapping-editor.hpp"
+#include "ui/output-dock.hpp"
 #include "ui/preview-view.hpp"
 
 #include <obs-frontend-api.h>
 #include <obs-module.h>
 #include <plugin-support.h>
+#include <util/config-file.h>
 #include <util/platform.h>
 
 #include <cassert>
@@ -26,6 +28,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include "thirdparty/obs-websocket-api.h"
 
 #include <QAction>
+#include <QDockWidget>
 #include <QApplication>
 #include <QJsonDocument>
 #include <QKeyEvent>
@@ -42,6 +45,8 @@ OBS_MODULE_AUTHOR("Okami Designs")
 using namespace om;
 
 static QPointer<MappingEditor> g_editor;
+static QPointer<OutputDock> g_dock;
+static const char *kDockId = "output-mapping-dock";
 static obs_hotkey_id g_hkStart = OBS_INVALID_HOTKEY_ID;
 static obs_hotkey_id g_hkStop = OBS_INVALID_HOTKEY_ID;
 static obs_hotkey_id g_hkEditor = OBS_INVALID_HOTKEY_ID;
@@ -357,6 +362,25 @@ VENDOR_REQ(SetSliceLocked)
 	});
 }
 
+VENDOR_REQ(SetIdentify)
+{
+	runBlocking([&]() {
+		const QString mode = QString::fromUtf8(obs_data_get_string(req, "mode"));
+		if (mode == QLatin1String("clear")) {
+			Controller::instance()->clearIdentify();
+			return setStateJson(res);
+		}
+		QString id = resolveDisplay(req);
+		if (id.isEmpty())
+			return setError(res, "unknown display");
+		Identify m = mode == QLatin1String("pattern")    ? Identify::Pattern
+			     : mode == QLatin1String("outlines") ? Identify::Outlines
+								 : Identify::Off;
+		Controller::instance()->setIdentify(id, m);
+		setStateJson(res);
+	});
+}
+
 VENDOR_REQ(ListPresets)
 {
 	UNUSED_PARAMETER(req);
@@ -461,6 +485,45 @@ VENDOR_REQ(EditorDrag)
 	});
 }
 
+VENDOR_REQ(EditorAction)
+{
+	runBlocking([&]() {
+		if (!automationEnabled())
+			return setError(res, "set OUTPUT_MAPPING_AUTOMATION=1 to enable");
+		MappingEditor *e = openEditor();
+		if (!e || !e->triggerAction(QString::fromUtf8(obs_data_get_string(req, "name"))))
+			return setError(res, "action not found or disabled");
+		setStateJson(res);
+	});
+}
+
+VENDOR_REQ(DockCapture)
+{
+	runBlocking([&]() {
+		if (!automationEnabled())
+			return setError(res, "set OUTPUT_MAPPING_AUTOMATION=1 to enable");
+		if (!g_dock)
+			return setError(res, "no dock");
+		if (auto *dw = qobject_cast<QDockWidget *>(g_dock->parentWidget())) {
+			dw->show();
+			const int w = (int)obs_data_get_int(req, "width"), h = (int)obs_data_get_int(req, "height");
+			if (w > 0 && h > 0) {
+				dw->setFloating(true);
+				dw->resize(w, h);
+			}
+		}
+		for (int i = 0; i < 5; i++)
+			QCoreApplication::processEvents();
+		QString path = QString::fromUtf8(obs_data_get_string(req, "path"));
+		QImage img = g_dock->captureImage();
+		if (!path.isEmpty() && !img.save(path))
+			return setError(res, "could not save");
+		obs_data_set_int(res, "tiles", g_dock->tileCount());
+		obs_data_set_bool(res, "visible", g_dock->isVisible());
+		obs_data_set_bool(res, "ok", true);
+	});
+}
+
 VENDOR_REQ(EditorKey)
 {
 	runBlocking([&]() {
@@ -500,6 +563,7 @@ static void registerVendor()
 	REG(Select);
 	REG(SetDelay);
 	REG(SetSliceLocked);
+	REG(SetIdentify);
 	REG(ListPresets);
 	REG(SavePreset);
 	REG(LoadPreset);
@@ -509,6 +573,8 @@ static void registerVendor()
 	REG(EditorCapture);
 	REG(EditorDrag);
 	REG(EditorKey);
+	REG(EditorAction);
+	REG(DockCapture);
 #undef REG
 	obs_log(LOG_INFO, "registered obs-websocket vendor 'output-mapping'");
 }
@@ -525,6 +591,8 @@ static void teardown()
 	if (Controller::instance())
 		Controller::instance()->shutdown(); /* saves, closes outputs */
 	delete g_editor.data();
+	if (g_dock)
+		obs_frontend_remove_dock(kDockId); /* deletes the dock and its displays */
 	Controller::destroy();
 	obs_enter_graphics();
 	gfx::shutdown();
@@ -543,6 +611,22 @@ static void frontendEvent(enum obs_frontend_event event, void *)
 				if (Controller::instance())
 					Controller::instance()->restoreOutputsOnStartup();
 			});
+		}
+		if (!g_dock) {
+			g_dock = new OutputDock([]() { openEditor(); });
+			if (obs_frontend_add_dock_by_id(kDockId, "Output Mapping", g_dock)) {
+				/* Show it the first time; afterwards OBS remembers the layout. */
+				config_t *cfg = obs_frontend_get_user_config();
+				if (cfg && !config_get_bool(cfg, "OutputMapping", "DockShownOnce")) {
+					QTimer::singleShot(0, qApp, []() {
+						if (g_dock && g_dock->parentWidget())
+							g_dock->parentWidget()->show();
+					});
+					config_set_bool(cfg, "OutputMapping", "DockShownOnce", true);
+				}
+			} else {
+				delete g_dock.data();
+			}
 		}
 		if (getenv("OUTPUT_MAPPING_OPEN_EDITOR"))
 			QTimer::singleShot(500, qApp, []() { openEditor(); });
@@ -596,6 +680,5 @@ const char *obs_module_name(void)
 
 const char *obs_module_description(void)
 {
-	return "Output Mapping by Okami Designs: slice the Program canvas onto multiple displays "
-	       "(Resolume-style advanced output).";
+	return "Output Mapping by Okami Designs: slice the Program canvas onto multiple displays.";
 }

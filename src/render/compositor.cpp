@@ -54,6 +54,27 @@ struct DelayLine {
 
 static std::unordered_map<std::string, DelayLine> g_delays;
 
+/* Identify overlay textures, per display (graphics thread only). */
+struct IdentifyTex {
+	qint64 key = 0;
+	gs_texture_t *tex = nullptr;
+};
+static std::unordered_map<std::string, IdentifyTex> g_identify;
+static std::unordered_map<std::string, IdentifyTex> g_identifyPreview;
+
+static gs_texture_t *identifyTexture(const RenderDisplay &rd, bool preview = false)
+{
+	IdentifyTex &t = (preview ? g_identifyPreview : g_identify)[rd.id];
+	const std::shared_ptr<const QImage> &img = preview ? rd.identifyPreviewImage : rd.identifyImage;
+	const qint64 key = img->cacheKey();
+	if (!t.tex || t.key != key) {
+		gs_texture_destroy(t.tex);
+		t.tex = createTextureFromImage(*img);
+		t.key = key;
+	}
+	return t.tex;
+}
+
 static void destroyLine(DelayLine &l)
 {
 	for (gs_texrender_t *t : l.hist)
@@ -95,6 +116,11 @@ void shutdown()
 	for (auto &kv : g_delays)
 		destroyLine(kv.second);
 	g_delays.clear();
+	for (auto *m : {&g_identify, &g_identifyPreview}) {
+		for (auto &kv : *m)
+			gs_texture_destroy(kv.second.tex);
+		m->clear();
+	}
 	gs_samplerstate_destroy(g_point);
 	gs_samplerstate_destroy(g_linear);
 	gs_vertexbuffer_destroy(g_quad);
@@ -203,6 +229,19 @@ void drawSlices(const ProgramFrame &pf, const RenderDisplay &rd)
 	gs_enable_framebuffer_srgb(prevSrgb);
 }
 
+void drawDisplayLive(const ProgramFrame &pf, const RenderDisplay &rd)
+{
+	/* Editor preview: test pattern without its baked-in slice outlines (the
+	 * editor draws interactive ones); outlines mode shows live video and
+	 * relies on the editor's own outlines. */
+	if (rd.identify == 1 && rd.identifyPreviewImage && !rd.identifyPreviewImage->isNull()) {
+		if (gs_texture_t *tex = identifyTexture(rd, true))
+			drawTexture(tex, 0.0f, 0.0f, (float)rd.width, (float)rd.height);
+		return;
+	}
+	drawSlices(pf, rd);
+}
+
 void renderDisplay(const RenderDisplay &rd, uint32_t cx, uint32_t cy, bool fit)
 {
 	if (rd.width <= 0 || rd.height <= 0 || cx == 0 || cy == 0)
@@ -226,7 +265,16 @@ void renderDisplay(const RenderDisplay &rd, uint32_t cx, uint32_t cy, bool fit)
 	gs_ortho(0.0f, (float)rd.width, 0.0f, (float)rd.height, -100.0f, 100.0f);
 
 	auto line = g_delays.find(rd.id);
-	if (line != g_delays.end() && line->second.show) {
+	if (rd.identify != 0 && rd.identifyImage && !rd.identifyImage->isNull()) {
+		/* Identify mode: what's on this screen, right now (no delay). */
+		if (rd.identify == 2) {
+			ProgramFrame pf;
+			if (acquireProgram(pf))
+				drawSlices(pf, rd);
+		}
+		if (gs_texture_t *tex = identifyTexture(rd))
+			drawTexture(tex, 0.0f, 0.0f, (float)rd.width, (float)rd.height);
+	} else if (line != g_delays.end() && line->second.show) {
 		/* Delayed (or ramping) output: draw the buffered frame. */
 		gs_texture_t *tex = gs_texrender_get_texture(line->second.show);
 		{
@@ -286,6 +334,19 @@ static void delayTick(void *)
 			it = g_delays.erase(it);
 		} else {
 			++it;
+		}
+	}
+
+	/* Free identify textures that are no longer shown. */
+	for (auto *m : {&g_identify, &g_identifyPreview}) {
+		for (auto it = m->begin(); it != m->end();) {
+			auto d = st->displays.find(it->first);
+			if (d == st->displays.end() || d->second.identify == 0) {
+				gs_texture_destroy(it->second.tex);
+				it = m->erase(it);
+			} else {
+				++it;
+			}
 		}
 	}
 
