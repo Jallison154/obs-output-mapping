@@ -24,7 +24,7 @@ Program canvas 3840×1080
 | Platform | Status |
 |---|---|
 | **Windows 10 (2004+) / 11, x64**, OBS 33.0.1 | **Primary target.** Native display layer (`src/platform/platform-windows.cpp`). Builds cleanly in CI (MSVC, warnings as errors); [download it from Releases](https://github.com/Jallison154/obs-output-mapping/releases). **Not yet run on a Windows PC:** please work through [docs/windows-test-plan.md](docs/windows-test-plan.md). |
-| macOS 13+ (universal), OBS 33.0.1 | Built and verified: 40/40 automated acceptance checks (see [VERIFICATION.md](VERIFICATION.md)) |
+| macOS 13+ (universal), OBS 33.0.1 | Built and verified end to end; the CI-built installer passes all automated acceptance checks (see [VERIFICATION.md](VERIFICATION.md)). [Download from Releases](https://github.com/Jallison154/obs-output-mapping/releases). |
 | Linux | Generic Qt fallback (`platform-qt.cpp`); not built or tested |
 
 Implemented now: rectangular slicing. Corner warping, masks and edge
@@ -203,6 +203,26 @@ symbols or frontend internals are touched.
 To uninstall, delete that `output-mapping` folder. Every push to `main`
 also builds a fresh zip on GitHub Actions (*Actions* tab ▸ latest run ▸
 *Artifacts*; requires being signed in to GitHub).
+
+## Install on macOS (no build needed)
+
+Requires macOS 13 or later and OBS Studio 33. The installer is universal
+(Apple Silicon and Intel).
+
+1. Quit OBS.
+2. From [**Releases**](https://github.com/Jallison154/obs-output-mapping/releases),
+   download **`output-mapping-<version>-macos-universal.pkg`**.
+3. Double-click it. Because the installer isn't signed with an Apple
+   Developer ID yet, macOS first says it can't be opened: click **Done**,
+   then open **System Settings ▸ Privacy & Security**, scroll down to the
+   message about `output-mapping…pkg` and click **Open Anyway**. (Only
+   needed once per downloaded installer.)
+4. Click through the installer. It installs only for your user, into
+   `~/Library/Application Support/obs-studio/plugins/`, with no admin
+   password needed.
+5. Start OBS and open **Tools ▸ Output Mapping…**.
+
+To uninstall, delete `~/Library/Application Support/obs-studio/plugins/output-mapping.plugin`.
 
 ## Building from source
 
