@@ -37,6 +37,7 @@ OutputWindow::OutputWindow(const QString &displayId, Mode mode, QScreen *screen,
 {
 	setAttribute(Qt::WA_DeleteOnClose, false);
 	setWindowTitle(title);
+	setObjectName(QStringLiteral("output:%1").arg(title));
 	setBackground(0x000000);
 
 	if (mode == Mode::Fullscreen) {
@@ -92,6 +93,7 @@ void OutputWindow::reapplyPlacement()
 
 void OutputWindow::renderFrame(uint32_t cx, uint32_t cy)
 {
+	frames_++;
 	RenderDisplay rd;
 	if (!RenderStore::instance().getDisplay(displayId_, rd))
 		return;

@@ -7,6 +7,7 @@ Setting up OBS: 3840x1080 canvas, two test-pattern scenes, Fade transition
   [PASS] Slice 2 drawn over right half (snapped) — [1920, 0, 1920, 1080]
   [PASS] Slice 1 assigned to HDMI-1 at 1:1 — HDMI-1 {'h': 1080, 'w': 1920, 'x': 0, 'y': 0}
   [PASS] Slice 2 assigned to HDMI-2 at 1:1 — HDMI-2 {'h': 1080, 'w': 1920, 'x': 0, 'y': 0}
+  [PASS] Output windows really draw frames on screen (not just snapshots) — {'HDMI-1': 30, 'HDMI-2': 30}
   [PASS] HDMI-1 == Program[0..1919] pixel-for-pixel — mismatches=0 maxdiff=0 of 2073600 px
   [PASS] HDMI-2 == Program[1920..3839] pixel-for-pixel — mismatches=0 maxdiff=0 of 2073600 px
   [PASS] Seam columns are Program x=1919 | x=1920 — (61, 220, 103) | (128, 220, 103)
@@ -25,9 +26,9 @@ Setting up OBS: 3840x1080 canvas, two test-pattern scenes, Fade transition
   [PASS] Undo restores the deleted slice exactly — [1920, 0, 1920, 1080] [200, 100, 1920, 1080]
   [PASS] Redo re-applies, undo brings it back
   [PASS] Set 500 ms delay on HDMI-2
-  [PASS] Turning delay on never shows black (smooth ramp) — 0 black of 36 frames sampled
+  [PASS] Turning delay on never shows black (smooth ramp) — 0 black of 37 frames sampled
   [PASS] Undelayed HDMI-1 switched to Scene B immediately — (202, 180, 200)
-  [PASS] Delayed HDMI-2 still shows Scene A 225 ms after the cut — (216, 132, 112)
+  [PASS] Delayed HDMI-2 still shows Scene A 220 ms after the cut — (216, 132, 112)
   [PASS] Delayed HDMI-2 shows Scene B after the delay, pixel-exact — mismatches=0
   [PASS] Changing delay 500 -> 300 ms live never shows black — 0 black of 25 frames sampled
   [PASS] Turning delay off never shows black — 0 black of 25 frames sampled
@@ -55,7 +56,7 @@ Setting up OBS: 3840x1080 canvas, two test-pattern scenes, Fade transition
   [PASS] Editor capture saved — 3000x1720
 
 == 5  Scene switch with transition; stop one output ==
-  [PASS] Mid-transition HDMI-1 is a blend of Scene A and Scene B — B=124 (A=40, B=200)
+  [PASS] Mid-transition HDMI-1 is a blend of Scene A and Scene B — B=123 (A=40, B=200)
   [PASS] Mid-transition HDMI-2 is a blend of Scene A and Scene B — B=60 (A=112, B=16)
   [PASS] After transition HDMI-1 follows Program (Scene B) — mismatches=0
   [PASS] After transition HDMI-2 follows Program (Scene B) — mismatches=0
@@ -65,30 +66,26 @@ Setting up OBS: 3840x1080 canvas, two test-pattern scenes, Fade transition
   [PASS] Same-model display without serial/UUID reports 'ambiguous' — Ambiguous identity · reassign
   [PASS] StartFullscreen refused on disconnected display — Display is disconnected. Reassign it before starting fullscreen.
   [PASS] StartFullscreen refused on ambiguous display — Display is ambiguous. Reassign it before starting fullscreen.
-  [PASS] Test pattern on all displays — ['pattern', 'pattern', 'pattern', 'pattern', 'pattern']
+  [PASS] Test pattern on all displays — ['pattern', 'pattern', 'pattern', 'pattern']
   [PASS] HDMI-1 shows the test pattern edge — (255, 40, 40)
   [PASS] Clear all patterns
-  [PASS] OBS dock shows one live tile per display — tiles=5 displays=5 visible=True
-  [PASS] Borderless fullscreen opens on the built-in display
-  [PASS] Fullscreen output stays up (placement watchdog is satisfied) — output=fullscreen
+  [PASS] OBS dock shows one live tile per display — tiles=4 displays=4 visible=True
 
 Quitting OBS…
-  OBS did not exit within 90 s (stuck in its own shutdown); force-killing
+  OBS exited cleanly
 Restarting OBS…
 
 == 6  After restart: persistence and missing displays ==
   [PASS] Slice 1 persisted (src+dst) — {'h': 1080, 'w': 1920, 'x': 100, 'y': 50} {'h': 1080, 'w': 1920, 'x': 0, 'y': 0}
   [PASS] Slice 1 lock persisted across restart
   [PASS] Slice 2 persisted (src+dst) — {'h': 1080, 'w': 1920, 'x': 1920, 'y': 0} {'h': 1080, 'w': 1920, 'x': 200, 'y': 100}
-  [PASS] Display names / kinds persisted — ['HDMI-1', 'HDMI-2', 'Missing HDMI', 'Twin Display', 'Built-in']
+  [PASS] Display names / kinds persisted — ['HDMI-1', 'HDMI-2', 'Missing HDMI', 'Twin Display']
   [PASS] Test pattern is never restored after restart (always starts off)
   [PASS] Missing display shown as disconnected after restart — Disconnected
   [PASS] Missing display was NOT opened anywhere (wanted output held back) — output=none outputWanted=True
   [PASS] Ambiguous display not opened — ambiguous output=none
-  [PASS] Fullscreen on exactly-identified built-in display restored after restart — output=fullscreen
-  [PASS] User stop clears restore flag — output=none outputWanted=False
-  [PASS] No fullscreen output on any unidentified display — ['Built-in']
+  [PASS] No fullscreen output on any unidentified display — []
   OBS exited cleanly
 
-74/74 checks passed
+71/71 checks passed
 EXIT 0

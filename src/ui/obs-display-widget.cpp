@@ -146,8 +146,16 @@ void ObsDisplayWidget::createDisplay()
 		return;
 
 	display_ = obs_display_create(&info, background_);
-	if (display_)
+	const bool isOutput = objectName().startsWith(QLatin1String("output:"));
+	if (display_) {
 		obs_display_add_draw_callback(display_, drawCallback, this);
+		if (isOutput)
+			blog(LOG_INFO, "[output-mapping] %s: video surface created (%ux%u px)",
+			     qPrintable(objectName()), info.cx, info.cy);
+	} else {
+		blog(LOG_ERROR, "[output-mapping] %s: obs_display_create FAILED (%ux%u px)",
+		     qPrintable(objectName().isEmpty() ? QStringLiteral("preview") : objectName()), info.cx, info.cy);
+	}
 }
 
 void ObsDisplayWidget::drawCallback(void *param, uint32_t cx, uint32_t cy)

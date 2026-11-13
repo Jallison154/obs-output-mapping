@@ -14,6 +14,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include "platform/platform.hpp"
 
 #include <QHash>
+#include <QSet>
 #include <QImage>
 #include <QObject>
 #include <QPointer>
@@ -141,6 +142,10 @@ public:
 	void startAll();
 	OutputMode outputMode(const QString &displayId) const;
 	int activeOutputCount() const { return (int)outputs_.size(); }
+	/* Output health: frames rendered per second by the output window
+	 * (-1 when not running); `stalled` after 3 s at 0 fps. */
+	int outputFps(const QString &displayId) const { return outputFps_.value(displayId, -1); }
+	bool outputStalled(const QString &displayId) const { return stalled_.contains(displayId); }
 
 	/* -- identify (test pattern / slice outlines on the real output) -- */
 	void setIdentify(const QString &displayId, Identify mode);
@@ -171,6 +176,7 @@ signals:
 	void undoStateChanged();
 	void presetsChanged();
 	void identifyChanged();
+	void outputHealthChanged(); /* every second while outputs run */
 
 private:
 	explicit Controller(QObject *parent = nullptr);
@@ -204,6 +210,11 @@ private:
 	QHash<QString, QString> sessionConfirmed_;
 	QString currentPreset_;
 	QHash<QString, Identify> identify_;
+	QTimer healthTimer_;
+	QHash<QString, uint64_t> lastFrames_;
+	QHash<QString, int> outputFps_, zeroSeconds_;
+	QSet<QString> stalled_;
+	void sampleHealth();
 	QHash<QString, std::pair<QString, std::shared_ptr<const QImage>>> previewPatterns_; /* key -> image */
 	void publishRender(); /* document + identify overlays -> graphics thread */
 	bool presetModified_ = false;

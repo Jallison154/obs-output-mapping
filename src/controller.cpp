@@ -89,6 +89,10 @@ Controller::Controller(QObject *parent) : QObject(parent)
 	for (QScreen *s : QGuiApplication::screens())
 		connect(s, &QScreen::geometryChanged, &screenTimer_, qOverload<>(&QTimer::start));
 
+	healthTimer_.setInterval(1000);
+	connect(&healthTimer_, &QTimer::timeout, this, &Controller::sampleHealth);
+	healthTimer_.start();
+
 	watchdog_.setInterval(250);
 	connect(&watchdog_, &QTimer::timeout, this, &Controller::verifyOutputs);
 	installDisplayChangeHook([this]() {
@@ -1282,6 +1286,57 @@ void Controller::verifyOutputs()
 		stopOutput(id, false); /* keeps outputWanted: resumes on exact reconnection */
 }
 
+void Controller::sampleHealth()
+{
+	if (shuttingDown_)
+		return;
+	bool any = false;
+	QSet<QString> running;
+	for (auto it = outputs_.begin(); it != outputs_.end(); ++it) {
+		OutputWindow *w = it.value();
+		if (!w)
+			continue;
+		any = true;
+		running.insert(it.key());
+		const uint64_t f = w->frameCount();
+		const int fps = lastFrames_.contains(it.key()) ? (int)(f - lastFrames_.value(it.key())) : -1;
+		lastFrames_.insert(it.key(), f);
+		if (fps < 0)
+			continue; /* first sample after start */
+		outputFps_.insert(it.key(), fps);
+		if (fps == 0) {
+			const int z = zeroSeconds_.value(it.key()) + 1;
+			zeroSeconds_.insert(it.key(), z);
+			if (z == 3 && !stalled_.contains(it.key())) {
+				stalled_.insert(it.key());
+				const DisplayMapping *d = doc_.display(it.key());
+				blog(LOG_WARNING,
+				     "[output-mapping] output '%s' is NOT RENDERING (0 fps for 3 s; surface %s, window %dx%d %s)",
+				     d ? qPrintable(d->name) : qPrintable(it.key()),
+				     w->hasSurface() ? "created" : "MISSING", w->width(), w->height(),
+				     w->isVisible() ? "visible" : "hidden");
+			}
+		} else {
+			zeroSeconds_.remove(it.key());
+			if (stalled_.remove(it.key())) {
+				const DisplayMapping *d = doc_.display(it.key());
+				blog(LOG_INFO, "[output-mapping] output '%s' rendering again (%d fps)",
+				     d ? qPrintable(d->name) : qPrintable(it.key()), fps);
+			}
+		}
+	}
+	/* Forget outputs that stopped. */
+	for (const QString &id : lastFrames_.keys())
+		if (!running.contains(id)) {
+			lastFrames_.remove(id);
+			outputFps_.remove(id);
+			zeroSeconds_.remove(id);
+			stalled_.remove(id);
+		}
+	if (any)
+		emit outputHealthChanged();
+}
+
 void Controller::setExcludeFromCapture(bool on)
 {
 	if (doc_.excludeFromCapture == on)
@@ -1415,6 +1470,8 @@ QJsonObject Controller::stateJson() const
 		d["identify"] = idm == Identify::Pattern ? "pattern" : idm == Identify::Outlines ? "outlines" : "off";
 		OutputMode m = outputMode(id);
 		d["output"] = m == OutputMode::Fullscreen ? "fullscreen" : m == OutputMode::Window ? "window" : "none";
+		d["outputFps"] = outputFps(id);
+		d["outputStalled"] = outputStalled(id);
 		ds[i] = d;
 	}
 	o["displays"] = ds;

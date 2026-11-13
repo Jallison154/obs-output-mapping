@@ -25,6 +25,11 @@
     "detail": "HDMI-2 {'h': 1080, 'w': 1920, 'x': 0, 'y': 0}"
   },
   {
+    "check": "Output windows really draw frames on screen (not just snapshots)",
+    "pass": true,
+    "detail": "{'HDMI-1': 30, 'HDMI-2': 30}"
+  },
+  {
     "check": "HDMI-1 == Program[0..1919] pixel-for-pixel",
     "pass": true,
     "detail": "mismatches=0 maxdiff=0 of 2073600 px"
@@ -97,7 +102,7 @@
   {
     "check": "Turning delay on never shows black (smooth ramp)",
     "pass": true,
-    "detail": "0 black of 36 frames sampled"
+    "detail": "0 black of 37 frames sampled"
   },
   {
     "check": "Undelayed HDMI-1 switched to Scene B immediately",
@@ -105,7 +110,7 @@
     "detail": "(202, 180, 200)"
   },
   {
-    "check": "Delayed HDMI-2 still shows Scene A 225 ms after the cut",
+    "check": "Delayed HDMI-2 still shows Scene A 220 ms after the cut",
     "pass": true,
     "detail": "(216, 132, 112)"
   },
@@ -237,7 +242,7 @@
   {
     "check": "Mid-transition HDMI-1 is a blend of Scene A and Scene B",
     "pass": true,
-    "detail": "B=124 (A=40, B=200)"
+    "detail": "B=123 (A=40, B=200)"
   },
   {
     "check": "Mid-transition HDMI-2 is a blend of Scene A and Scene B",
@@ -287,7 +292,7 @@
   {
     "check": "Test pattern on all displays",
     "pass": true,
-    "detail": "['pattern', 'pattern', 'pattern', 'pattern', 'pattern']"
+    "detail": "['pattern', 'pattern', 'pattern', 'pattern']"
   },
   {
     "check": "HDMI-1 shows the test pattern edge",
@@ -302,17 +307,7 @@
   {
     "check": "OBS dock shows one live tile per display",
     "pass": true,
-    "detail": "tiles=5 displays=5 visible=True"
-  },
-  {
-    "check": "Borderless fullscreen opens on the built-in display",
-    "pass": true,
-    "detail": ""
-  },
-  {
-    "check": "Fullscreen output stays up (placement watchdog is satisfied)",
-    "pass": true,
-    "detail": "output=fullscreen"
+    "detail": "tiles=4 displays=4 visible=True"
   },
   {
     "check": "Slice 1 persisted (src+dst)",
@@ -332,7 +327,7 @@
   {
     "check": "Display names / kinds persisted",
     "pass": true,
-    "detail": "['HDMI-1', 'HDMI-2', 'Missing HDMI', 'Twin Display', 'Built-in']"
+    "detail": "['HDMI-1', 'HDMI-2', 'Missing HDMI', 'Twin Display']"
   },
   {
     "check": "Test pattern is never restored after restart (always starts off)",
@@ -355,18 +350,8 @@
     "detail": "ambiguous output=none"
   },
   {
-    "check": "Fullscreen on exactly-identified built-in display restored after restart",
-    "pass": true,
-    "detail": "output=fullscreen"
-  },
-  {
-    "check": "User stop clears restore flag",
-    "pass": true,
-    "detail": "output=none outputWanted=False"
-  },
-  {
     "check": "No fullscreen output on any unidentified display",
     "pass": true,
-    "detail": "['Built-in']"
+    "detail": "[]"
   }
 ]

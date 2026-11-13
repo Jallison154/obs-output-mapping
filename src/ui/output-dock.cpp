@@ -173,6 +173,21 @@ OutputDock::OutputDock(std::function<void()> openEditor, QWidget *parent)
 	connect(c, &Controller::outputsChanged, debounce, qOverload<>(&QTimer::start));
 	connect(c, &Controller::screensChanged, debounce, qOverload<>(&QTimer::start));
 	connect(c, &Controller::identifyChanged, debounce, qOverload<>(&QTimer::start));
+	connect(c, &Controller::outputHealthChanged, this, [this]() {
+		Controller *ctl = Controller::instance();
+		for (QLabel *l : findChildren<QLabel *>()) {
+			if (!l->objectName().startsWith(QLatin1String("health:")))
+				continue;
+			const QString id = l->objectName().mid(7);
+			const int fps = ctl->outputFps(id);
+			if (fps < 0)
+				l->clear();
+			else if (ctl->outputStalled(id))
+				l->setText(QStringLiteral("<b style='color:%1'>⚠ NOT RENDERING</b>").arg(theme::kLive));
+			else
+				l->setText(QStringLiteral("<span style='opacity:0.75'>%1 fps</span>").arg(fps));
+		}
+	});
 	rebuild();
 }
 
@@ -234,7 +249,11 @@ QWidget *OutputDock::makeTile(const QString &id)
 	name->setToolTip(st.text);
 	auto *badgeLbl = new QLabel(QStringLiteral("<b style='color:%1'>%2</b>").arg(badgeColor.name(), badge), tile);
 	badgeLbl->setToolTip(st.text);
+	auto *health = new QLabel(tile);
+	health->setObjectName(QStringLiteral("health:") + id);
+	health->setToolTip(QStringLiteral("Frames the output window actually draws per second"));
 	head->addWidget(name, 1);
+	head->addWidget(health);
 	head->addWidget(badgeLbl);
 	v->addLayout(head);
 

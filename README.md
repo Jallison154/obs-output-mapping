@@ -37,7 +37,8 @@ is the place they would go).
   Mapping*; shown automatically the first time): a confidence monitor with a
   live thumbnail of exactly what each display receives (including delay and
   test patterns), its status (LIVE / WINDOW / READY / OFFLINE / CHECK /
-  VIRTUAL), ⏱ delay and ⚠ test-pattern markers, per-display **Fullscreen**,
+  VIRTUAL), the frames per second each running output actually draws (or a
+  red **⚠ NOT RENDERING** if it stops), ⏱ delay and ⚠ test-pattern markers, per-display **Fullscreen**,
   **Window** and **Clear Pattern** buttons, plus **Start All**, **Stop All**
   (asks first when live), **Test Pattern All** / **Clear All Patterns**
   (asks first when live) and **Editor…**. "Live previews" pauses the

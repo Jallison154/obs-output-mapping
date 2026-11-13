@@ -16,6 +16,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QPointer>
 #include <QScreen>
 
+#include <atomic>
 #include <string>
 
 namespace om {
@@ -38,6 +39,9 @@ public:
 
 	void showOutput(const OutputWindowOptions &opts);
 	void reapplyPlacement();
+	/* Frames actually rendered into this output's swapchain (health). */
+	uint64_t frameCount() const { return frames_.load(); }
+	bool hasSurface() const { return display() != nullptr; }
 	int misplacedChecks = 0; /* consecutive watchdog failures */
 
 signals:
@@ -54,6 +58,7 @@ private:
 	QPointer<QScreen> screen_;
 	int dispW_, dispH_;
 	bool closingFromCode_ = false;
+	std::atomic<uint64_t> frames_{0};
 	bool allowFocus_ = false;
 	bool excludeFromCapture_ = true;
 

@@ -317,6 +317,11 @@ def phase_mapping(ws, work, fullscreen_builtin):
         ws.vendor("OpenWindow", {"displayName": n})
     time.sleep(1.0)
 
+    time.sleep(2.5)  # health is sampled once a second
+    st = state(ws)
+    fps = {d["name"]: d.get("outputFps") for d in st["displays"]}
+    check("Output windows really draw frames on screen (not just snapshots)",
+          all((fps.get(n) or 0) >= 10 for n in ("HDMI-1", "HDMI-2")), str(fps))
     a = snapshot(ws, "HDMI-1", os.path.join(work, "step2_hdmi1.ppm"))
     b = snapshot(ws, "HDMI-2", os.path.join(work, "step2_hdmi2.ppm"))
     r = compare(a, expect_crop(0, 0, 0, 0, TAG_A))
