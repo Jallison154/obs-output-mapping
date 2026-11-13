@@ -370,6 +370,12 @@ VENDOR_REQ(SetIdentify)
 			Controller::instance()->clearIdentify();
 			return setStateJson(res);
 		}
+		if (obs_data_get_bool(req, "all")) {
+			Controller::instance()->setIdentifyAll(mode == QLatin1String("pattern")    ? Identify::Pattern
+							       : mode == QLatin1String("outlines") ? Identify::Outlines
+												   : Identify::Off);
+			return setStateJson(res);
+		}
 		QString id = resolveDisplay(req);
 		if (id.isEmpty())
 			return setError(res, "unknown display");

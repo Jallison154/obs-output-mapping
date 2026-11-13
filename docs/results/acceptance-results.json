@@ -105,7 +105,7 @@
     "detail": "(202, 180, 200)"
   },
   {
-    "check": "Delayed HDMI-2 still shows Scene A 221 ms after the cut",
+    "check": "Delayed HDMI-2 still shows Scene A 225 ms after the cut",
     "pass": true,
     "detail": "(216, 132, 112)"
   },
@@ -237,7 +237,7 @@
   {
     "check": "Mid-transition HDMI-1 is a blend of Scene A and Scene B",
     "pass": true,
-    "detail": "B=123 (A=40, B=200)"
+    "detail": "B=124 (A=40, B=200)"
   },
   {
     "check": "Mid-transition HDMI-2 is a blend of Scene A and Scene B",
@@ -283,6 +283,21 @@
     "check": "StartFullscreen refused on ambiguous display",
     "pass": true,
     "detail": "Display is ambiguous. Reassign it before starting fullscreen."
+  },
+  {
+    "check": "Test pattern on all displays",
+    "pass": true,
+    "detail": "['pattern', 'pattern', 'pattern', 'pattern', 'pattern']"
+  },
+  {
+    "check": "HDMI-1 shows the test pattern edge",
+    "pass": true,
+    "detail": "(255, 40, 40)"
+  },
+  {
+    "check": "Clear all patterns",
+    "pass": true,
+    "detail": ""
   },
   {
     "check": "OBS dock shows one live tile per display",

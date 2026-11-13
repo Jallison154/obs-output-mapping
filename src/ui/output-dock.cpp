@@ -102,8 +102,19 @@ OutputDock::OutputDock(std::function<void()> openEditor, QWidget *parent)
 	stopAll->setToolTip(QStringLiteral("Stop every output (asks first if any are live)"));
 	auto *editor = new QPushButton(QStringLiteral("Editor…"), this);
 	editor->setToolTip(QStringLiteral("Open the Output Mapping editor"));
+	auto *patternsAll = new QPushButton(this);
+	patternsAll->setToolTip(QStringLiteral("Show the test pattern on every display (asks first if any are "
+					       "live); click again to clear all"));
+	auto updatePatternsAll = [patternsAll]() {
+		const bool any = Controller::instance()->identifyCount() > 0;
+		patternsAll->setText(any ? QStringLiteral("Clear All Patterns") : QStringLiteral("Test Pattern All"));
+	};
+	updatePatternsAll();
+	connect(patternsAll, &QPushButton::clicked, this, [this]() { toggleTestPatternAll(this); });
+	connect(Controller::instance(), &Controller::identifyChanged, patternsAll, updatePatternsAll);
 	bar->addWidget(startAll);
 	bar->addWidget(stopAll);
+	bar->addWidget(patternsAll);
 	bar->addStretch(1);
 	bar->addWidget(editor);
 	root->addLayout(bar);

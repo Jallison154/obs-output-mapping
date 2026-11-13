@@ -16,6 +16,8 @@ the Free Software Foundation; either version 2 of the License, or
 #include "ui/theme.hpp"
 
 #include <QColor>
+#include <QMessageBox>
+#include <QPushButton>
 #include <QString>
 
 namespace om {
@@ -66,6 +68,35 @@ inline QString statusBadge(const DisplayStatus &st, DisplayKind kind, OutputMode
 		color = QColor(theme::kOk);
 		return QStringLiteral("READY");
 	}
+}
+
+/* Toggle the test pattern on every display. Asks first when outputs are
+ * live. Returns true if the state changed. */
+inline bool toggleTestPatternAll(QWidget *parent)
+{
+	Controller *c = Controller::instance();
+	if (c->identifyCount() > 0) {
+		c->clearIdentify();
+		return true;
+	}
+	if (c->doc().displays.empty())
+		return false;
+	const int live = c->liveFullscreenCount();
+	if (live > 0) {
+		QMessageBox box(QMessageBox::Warning, QStringLiteral("Test Pattern on All Displays?"),
+				QStringLiteral("%1 display(s) are live. The test pattern will appear on every display, "
+					       "in front of the audience, until you clear it.")
+					.arg(live),
+				QMessageBox::NoButton, parent);
+		QPushButton *show = box.addButton(QStringLiteral("Show on All Outputs"), QMessageBox::AcceptRole);
+		box.addButton(QMessageBox::Cancel);
+		box.setDefaultButton(QMessageBox::Cancel);
+		box.exec();
+		if (box.clickedButton() != show)
+			return false;
+	}
+	c->setIdentifyAll(Identify::Pattern);
+	return true;
 }
 
 } // namespace om

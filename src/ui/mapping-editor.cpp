@@ -524,6 +524,11 @@ void MappingEditor::buildUi()
 	captureAct_->setToolTip(QStringLiteral("Display/window capture can't see the outputs, so Program can never "
 					       "contain its own output"));
 	optMenu->addSeparator();
+	optMenu->addAction(QStringLiteral("Test Pattern on All Displays"), this, [this]() {
+		if (c_->identifyCount() > 0)
+			c_->clearIdentify(); /* start from a clean state, then show on all */
+		toggleTestPatternAll(this);
+	});
 	clearIdentifyAct_ =
 		optMenu->addAction(QStringLiteral("Clear All Test Patterns"), this, [this]() { c_->clearIdentify(); });
 	optMenu->addAction(QStringLiteral("Keyboard Shortcuts…"), this, &MappingEditor::showShortcuts);

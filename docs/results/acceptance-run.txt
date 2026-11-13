@@ -27,7 +27,7 @@ Setting up OBS: 3840x1080 canvas, two test-pattern scenes, Fade transition
   [PASS] Set 500 ms delay on HDMI-2
   [PASS] Turning delay on never shows black (smooth ramp) — 0 black of 36 frames sampled
   [PASS] Undelayed HDMI-1 switched to Scene B immediately — (202, 180, 200)
-  [PASS] Delayed HDMI-2 still shows Scene A 221 ms after the cut — (216, 132, 112)
+  [PASS] Delayed HDMI-2 still shows Scene A 225 ms after the cut — (216, 132, 112)
   [PASS] Delayed HDMI-2 shows Scene B after the delay, pixel-exact — mismatches=0
   [PASS] Changing delay 500 -> 300 ms live never shows black — 0 black of 25 frames sampled
   [PASS] Turning delay off never shows black — 0 black of 25 frames sampled
@@ -55,7 +55,7 @@ Setting up OBS: 3840x1080 canvas, two test-pattern scenes, Fade transition
   [PASS] Editor capture saved — 3000x1720
 
 == 5  Scene switch with transition; stop one output ==
-  [PASS] Mid-transition HDMI-1 is a blend of Scene A and Scene B — B=123 (A=40, B=200)
+  [PASS] Mid-transition HDMI-1 is a blend of Scene A and Scene B — B=124 (A=40, B=200)
   [PASS] Mid-transition HDMI-2 is a blend of Scene A and Scene B — B=60 (A=112, B=16)
   [PASS] After transition HDMI-1 follows Program (Scene B) — mismatches=0
   [PASS] After transition HDMI-2 follows Program (Scene B) — mismatches=0
@@ -65,12 +65,15 @@ Setting up OBS: 3840x1080 canvas, two test-pattern scenes, Fade transition
   [PASS] Same-model display without serial/UUID reports 'ambiguous' — Ambiguous identity · reassign
   [PASS] StartFullscreen refused on disconnected display — Display is disconnected. Reassign it before starting fullscreen.
   [PASS] StartFullscreen refused on ambiguous display — Display is ambiguous. Reassign it before starting fullscreen.
+  [PASS] Test pattern on all displays — ['pattern', 'pattern', 'pattern', 'pattern', 'pattern']
+  [PASS] HDMI-1 shows the test pattern edge — (255, 40, 40)
+  [PASS] Clear all patterns
   [PASS] OBS dock shows one live tile per display — tiles=5 displays=5 visible=True
   [PASS] Borderless fullscreen opens on the built-in display
   [PASS] Fullscreen output stays up (placement watchdog is satisfied) — output=fullscreen
 
 Quitting OBS…
-  OBS exited cleanly
+  OBS did not exit within 90 s (stuck in its own shutdown); force-killing
 Restarting OBS…
 
 == 6  After restart: persistence and missing displays ==
@@ -87,5 +90,5 @@ Restarting OBS…
   [PASS] No fullscreen output on any unidentified display — ['Built-in']
   OBS exited cleanly
 
-71/71 checks passed
+74/74 checks passed
 EXIT 0

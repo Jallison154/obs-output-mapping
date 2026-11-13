@@ -147,6 +147,8 @@ public:
 	Identify identify(const QString &displayId) const { return identify_.value(displayId, Identify::Off); }
 	int identifyCount() const;
 	void clearIdentify();
+	void setIdentifyAll(Identify mode); /* every display */
+	int liveFullscreenCount() const;
 
 	/* Offscreen render of exactly what the display receives. */
 	QImage snapshot(const QString &displayId, QString *error = nullptr);

@@ -113,7 +113,12 @@ QImage makeTestPattern(const DisplayMapping &d, bool withSlices)
 		p.drawRect(QRect(sx > 0 ? c.x() : c.x() - th, sy > 0 ? c.y() : c.y() - len, th, len));
 	}
 
-	/* Exact-edge border: outermost pixel red, next pixel white. If either
+	/* Slice placement on this display. */
+	p.setRenderHint(QPainter::Antialiasing, false);
+	if (withSlices)
+		drawSliceOutlines(p, d, true, unit);
+
+	/* Exact-edge border (drawn last so nothing covers it): outermost pixel red, next pixel white. If either
 	 * is missing on the screen, the display is cropping (overscan). */
 	auto frame = [&](int inset, const QColor &col) {
 		p.fillRect(inset, inset, w - 2 * inset, 1, col);
@@ -123,11 +128,6 @@ QImage makeTestPattern(const DisplayMapping &d, bool withSlices)
 	};
 	frame(0, QColor(255, 40, 40));
 	frame(1, QColor(255, 255, 255));
-
-	/* Slice placement on this display. */
-	p.setRenderHint(QPainter::Antialiasing, false);
-	if (withSlices)
-		drawSliceOutlines(p, d, true, unit);
 
 	/* Identity text, above and below the centre circle. */
 	p.setRenderHint(QPainter::TextAntialiasing, true);

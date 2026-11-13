@@ -39,6 +39,7 @@ is the place they would go).
   test patterns), its status (LIVE / WINDOW / READY / OFFLINE / CHECK /
   VIRTUAL), ⏱ delay and ⚠ test-pattern markers, per-display **Fullscreen**,
   **Window** and **Clear Pattern** buttons, plus **Start All**, **Stop All**
+  (asks first when live), **Test Pattern All** / **Clear All Patterns**
   (asks first when live) and **Editor…**. "Live previews" pauses the
   thumbnails if you need to save GPU; outputs are unaffected.
 
@@ -90,8 +91,9 @@ is the place they would go).
       draggable outlines on top, so you can fit slices against it.
     - If the display is live, it asks first ("this will take over what the
       audience sees"). A red **ON OUTPUT** badge shows in the sidebar and
-      header while it's on, and *Options ▸ Clear All Test Patterns* turns
-      every one off. Identify is never saved: OBS always starts with it
+      header while it's on. *Test Pattern All* (dock, or *Options ▸ Test
+      Pattern on All Displays*) puts it on every display at once, and
+      *Clear All Patterns* turns every one off. Identify is never saved: OBS always starts with it
       off. It ignores the output delay so you see changes instantly.
   - **Lock slices** that are set up correctly: tick **🔒 Locked** in the
     slice panel, press Ctrl/⌘+L, or right-click it (or *Lock All Slices* on

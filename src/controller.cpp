@@ -1060,6 +1060,28 @@ int Controller::identifyCount() const
 	return (int)identify_.size();
 }
 
+void Controller::setIdentifyAll(Identify mode)
+{
+	if (mode == Identify::Off) {
+		clearIdentify();
+		return;
+	}
+	for (const auto &d : doc_.displays)
+		identify_.insert(d.id, mode);
+	blog(LOG_INFO, "[output-mapping] identify on all %d display(s)", (int)doc_.displays.size());
+	publishRender();
+	emit identifyChanged();
+}
+
+int Controller::liveFullscreenCount() const
+{
+	int n = 0;
+	for (const auto &d : doc_.displays)
+		if (outputMode(d.id) == OutputMode::Fullscreen)
+			n++;
+	return n;
+}
+
 void Controller::clearIdentify()
 {
 	if (identify_.isEmpty())

@@ -561,6 +561,17 @@ def phase_mapping(ws, work, fullscreen_builtin):
     r = ws.vendor("StartFullscreen", {"displayName": "Twin Display"})
     check("StartFullscreen refused on ambiguous display", not r.get("ok"), r.get("error", ""))
 
+    # Test pattern on all displays, then clear all.
+    r = ws.vendor("SetIdentify", {"mode": "pattern", "all": True})
+    check("Test pattern on all displays",
+          all(d["identify"] == "pattern" for d in r["state"]["displays"]), str([d["identify"] for d in r["state"]["displays"]]))
+    time.sleep(0.3)
+    a = snapshot(ws, "HDMI-1", os.path.join(work, "all_pattern_hdmi1.ppm"))
+    check("HDMI-1 shows the test pattern edge", max(abs(x - y) for x, y in zip(pixel(a, 0, 0), (255, 40, 40))) <= 3,
+          str(pixel(a, 0, 0)))
+    r = ws.vendor("SetIdentify", {"mode": "clear"})
+    check("Clear all patterns", all(d["identify"] == "off" for d in r["state"]["displays"]))
+
     # OBS dock: one live tile per display.
     time.sleep(0.5)  # the dock coalesces bursts of changes (50 ms)
     st = state(ws)
