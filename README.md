@@ -108,9 +108,10 @@ is the place they would go).
     line up displays with different processing latency or to match delayed
     audio. Rounded to whole frames; the editor shows the frame count and GPU
     memory used (1080p ≈ 8 MB per frame). Frames are buffered on the GPU.
-    **Changing the delay live never flashes**: the output smoothly slows to
-    half speed (more delay) or speeds up to 2x (less delay) until it reaches
-    the new value, and turning delay on or off ramps from or to live.
+    **Changing the delay live never flashes**: the output keeps playing at
+    normal speed while the new delay buffers, then crossfades (0.5 s) from
+    the old-delay picture to the new one. Turning delay on fades from live,
+    and turning it off fades back to live.
     Previews stay live while you edit; the output and snapshots are delayed.
     Audio isn't delayed (use OBS's per-source Sync Offset).
   - **Presets ▾**: save the whole layout (displays, slices, positions)
@@ -398,7 +399,7 @@ Vendor name `output-mapping`, called via `CallVendorRequest`:
 | `StartAll` / `StopAll` | – | All exactly identified displays / all outputs |
 | `Undo` / `Redo` | – | Same as the editor buttons |
 | `ListPresets` / `SavePreset` / `LoadPreset` / `DeletePreset` | `{name}` | Layout presets, e.g. recall from a Stream Deck |
-| `SetDelay` | `{displayName, delayMs}` | Per-output video delay (0 = live); changes ramp smoothly |
+| `SetDelay` | `{displayName, delayMs}` | Per-output video delay (0 = live); changes crossfade (0.5 s) |
 | `SetIdentify` | `{displayName, mode: pattern / outlines / off}` or `{mode: clear}` | Test pattern / slice outlines on an output |
 | `SetSliceLocked` | `{sliceName` or `sliceId, locked}` | Lock or unlock a slice |
 | `Snapshot` | `{displayName, path}` | Render exactly what the display receives to `.png` / `.ppm` |

@@ -14,6 +14,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <graphics/matrix4.h>
 #include <graphics/vec4.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <cstring>
@@ -37,19 +38,23 @@ static gs_vertbuffer_t *g_quad = nullptr;
 /* slot; when the ring is full, the oldest slot is exactly N frames old   */
 /* and is what the output shows. All on the GPU.                          */
 
-/* Smooth delay changes: the shown frame's age (frames behind live) ramps
- * toward the target instead of jumping, so adjusting the delay live never
- * flashes black or jumps. More delay -> half-speed playback until reached;
- * less delay -> double speed. Turning delay on/off ramps from/to live. */
-static constexpr double kRampSlower = 0.5; /* age gained per frame (plays at 0.5x) */
-static constexpr double kRampFaster = 1.0; /* age lost per frame (plays at 2x)   */
+/* Smooth delay changes: a CROSSFADE, never slow/fast motion or a jump.
+ * The output keeps playing at the current delay (normal speed) while the
+ * buffer fills up to the new delay, then dissolves from the old-delay
+ * picture to the new-delay picture over kFadeSeconds. Turning delay on
+ * fades from live; turning it off fades to live, then hands over to direct
+ * compositing (identical picture). */
+static constexpr double kFadeSeconds = 0.5;
 
 struct DelayLine {
 	uint32_t w = 0, h = 0;
 	std::deque<gs_texrender_t *> hist;  /* oldest front, newest back */
 	std::vector<gs_texrender_t *> pool; /* recycled render targets */
-	double age = 0.0;                   /* frames behind live being shown */
+	int cur = 0;                        /* delay (frames) being shown */
+	int next = -1;                      /* delay being faded to, -1 = none */
+	double mix = 0.0;                   /* fade progress 0..1 toward next */
 	gs_texrender_t *show = nullptr;     /* what outputs draw this frame */
+	gs_texrender_t *showNext = nullptr; /* fade target (with weight mix) */
 	bool failed = false;
 };
 
@@ -304,24 +309,35 @@ void renderDisplay(const RenderDisplay &rd, uint32_t cx, uint32_t cy, bool fit)
 		if (gs_texture_t *tex = identifyTexture(rd))
 			drawTexture(tex, 0.0f, 0.0f, (float)rd.width, (float)rd.height);
 	} else if (line != g_delays.end() && line->second.show) {
-		/* Delayed (or ramping) output: draw the buffered frame. */
-		gs_texture_t *tex = gs_texrender_get_texture(line->second.show);
-		{
-			if (tex) {
-				const bool prevSrgb = gs_framebuffer_srgb_enabled();
-				gs_enable_framebuffer_srgb(true);
-				gs_blend_state_push();
-				gs_enable_blending(false);
-				gs_effect_t *effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
-				gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
-				gs_effect_set_texture_srgb(image, tex);
-				gs_effect_set_float(gs_effect_get_param_by_name(effect, "multiplier"), 1.0f);
+		/* Delayed (or fading) output: draw the buffered frame(s). A fade is
+		 * old*(1-mix) + new*mix, summed in linear light. */
+		const DelayLine &dl = line->second;
+		gs_texture_t *tex = gs_texrender_get_texture(dl.show);
+		gs_texture_t *texNext = dl.showNext ? gs_texrender_get_texture(dl.showNext) : nullptr;
+		const float m = texNext ? (float)std::clamp(dl.mix, 0.0, 1.0) : 0.0f;
+		if (tex) {
+			const bool prevSrgb = gs_framebuffer_srgb_enabled();
+			gs_enable_framebuffer_srgb(true);
+			gs_blend_state_push();
+			gs_effect_t *effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
+			gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
+			gs_eparam_t *mult = gs_effect_get_param_by_name(effect, "multiplier");
+			auto drawLayer = [&](gs_texture_t *t, float weight) {
+				gs_effect_set_texture_srgb(image, t);
+				gs_effect_set_float(mult, weight);
 				gs_effect_set_next_sampler(image, g_point);
-				while (gs_effect_loop(effect, "Draw"))
-					gs_draw_sprite(tex, 0, (uint32_t)rd.width, (uint32_t)rd.height);
-				gs_blend_state_pop();
-				gs_enable_framebuffer_srgb(prevSrgb);
+				while (gs_effect_loop(effect, weight == 1.0f ? "Draw" : "DrawMultiply"))
+					gs_draw_sprite(t, 0, (uint32_t)rd.width, (uint32_t)rd.height);
+			};
+			gs_enable_blending(false);
+			drawLayer(tex, 1.0f - m);
+			if (texNext && m > 0.0f) {
+				gs_enable_blending(true);
+				gs_blend_function(GS_BLEND_ONE, GS_BLEND_ONE); /* additive */
+				drawLayer(texNext, m);
 			}
+			gs_blend_state_pop();
+			gs_enable_framebuffer_srgb(prevSrgb);
 		}
 	} else {
 		ProgramFrame pf;
@@ -400,7 +416,7 @@ static void delayTick(void *)
 			l.h = h;
 		}
 		if (l.failed) {
-			l.show = nullptr;
+			l.show = l.showNext = nullptr;
 			continue;
 		}
 
@@ -418,7 +434,7 @@ static void delayTick(void *)
 			     h);
 			gs_texrender_destroy(tr);
 			l.failed = true;
-			l.show = nullptr;
+			l.show = l.showNext = nullptr;
 			continue;
 		}
 		vec4 black;
@@ -435,15 +451,28 @@ static void delayTick(void *)
 		gs_texrender_end(tr);
 		l.hist.push_back(tr);
 
-		/* Ramp the shown age toward the target. */
-		if (l.age < target)
-			l.age = std::min((double)target, l.age + kRampSlower);
-		else if (l.age > target)
-			l.age = std::max((double)target, l.age - kRampFaster);
-		l.age = std::min(l.age, (double)(l.hist.size() - 1));
+		/* Crossfade state machine. */
+		const int avail = (int)l.hist.size() - 1; /* oldest delay we can show */
+		if (l.next >= 0 && l.mix == 0.0 && target != l.next)
+			l.next = target == l.cur ? -1 : target; /* not started yet: retarget */
+		if (l.next < 0 && target != l.cur) {
+			l.next = target; /* start a fade once the buffer reaches it */
+			l.mix = 0.0;
+		}
+		if (l.next >= 0 && l.next <= avail) {
+			const double fps = videoFps();
+			const double step = 1.0 / std::max(1.0, kFadeSeconds * (fps > 0 ? fps : 30.0));
+			l.mix += step;
+			if (l.mix >= 1.0) {
+				l.cur = l.next; /* fade done; a newer target fades next */
+				l.next = -1;
+				l.mix = 0.0;
+			}
+		}
+		l.cur = std::min(l.cur, avail);
 
 		/* Keep exactly the history still needed; recycle the rest. */
-		const size_t keep = (size_t)std::max(target, (int)std::ceil(l.age)) + 1;
+		const size_t keep = (size_t)std::max({target, l.cur, l.next}) + 1;
 		while (l.hist.size() > keep) {
 			l.pool.push_back(l.hist.front());
 			l.hist.pop_front();
@@ -453,15 +482,17 @@ static void delayTick(void *)
 			l.pool.pop_back();
 		}
 
-		if (target == 0 && l.age <= 0.0) {
-			/* Ramped all the way back to live: hand over to direct
+		if (target == 0 && l.cur == 0 && l.next < 0) {
+			/* Faded all the way back to live: hand over to direct
 			 * compositing (identical picture) and free the buffer. */
 			destroyLine(l);
 			g_delays.erase(kv.first);
 			continue;
 		}
-		const size_t idx = l.hist.size() - 1 - (size_t)std::floor(l.age);
-		l.show = l.hist[idx];
+		const size_t last = l.hist.size() - 1;
+		l.show = l.hist[last - (size_t)l.cur];
+		l.showNext = (l.next >= 0 && l.next <= (int)last && l.mix > 0.0) ? l.hist[last - (size_t)l.next]
+										 : nullptr;
 	}
 
 	thumbTick(*st);

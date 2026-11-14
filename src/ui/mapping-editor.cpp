@@ -1190,7 +1190,7 @@ void MappingEditor::updateInspector()
 			delayInfo_->setText(
 				QStringLiteral(
 					"%1 frame(s) at %2 fps (%3 ms actual) · about %4 MB of GPU memory. "
-					"Changes ramp smoothly (no black). Previews stay live; the output is delayed.")
+					"Changes crossfade smoothly (no black, no jumps). Previews stay live; the output is delayed.")
 					.arg(frames)
 					.arg(fps, 0, 'f', fps == std::floor(fps) ? 0 : 2)
 					.arg(fps > 0 ? qRound(frames * 1000.0 / fps) : 0)
