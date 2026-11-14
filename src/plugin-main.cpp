@@ -532,6 +532,30 @@ VENDOR_REQ(DockResize)
 	});
 }
 
+/* Automation: read (and optionally set) the dock's visibility without
+ * otherwise touching it, to test that it survives restarts. */
+VENDOR_REQ(DockInfo)
+{
+	runBlocking([&]() {
+		if (!automationEnabled())
+			return setError(res, "set OUTPUT_MAPPING_AUTOMATION=1 to enable");
+		auto *dw = g_dock ? qobject_cast<QDockWidget *>(g_dock->parentWidget()) : nullptr;
+		if (!dw)
+			return setError(res, "no dock");
+		if (obs_data_has_user_value(req, "visible"))
+			if (obs_data_get_bool(req, "visible") == dw->isHidden())
+				dw->toggleViewAction()->trigger(); /* exactly like the Docks menu */
+		if (obs_data_has_user_value(req, "floating"))
+			dw->setFloating(obs_data_get_bool(req, "floating"));
+		QCoreApplication::processEvents();
+		obs_data_set_bool(res, "visible", !dw->isHidden());
+		obs_data_set_bool(res, "floating", dw->isFloating());
+		obs_data_set_int(res, "width", dw->width());
+		obs_data_set_int(res, "height", dw->height());
+		obs_data_set_bool(res, "ok", true);
+	});
+}
+
 VENDOR_REQ(DockCapture)
 {
 	runBlocking([&]() {
@@ -611,6 +635,7 @@ static void registerVendor()
 	REG(EditorAction);
 	REG(DockCapture);
 	REG(DockResize);
+	REG(DockInfo);
 #undef REG
 	obs_log(LOG_INFO, "registered obs-websocket vendor 'output-mapping'");
 }
@@ -648,22 +673,36 @@ static void frontendEvent(enum obs_frontend_event event, void *)
 					Controller::instance()->restoreOutputsOnStartup();
 			});
 		}
-		if (!g_dock) {
-			g_dock = new OutputDock([]() { openEditor(); });
-			if (obs_frontend_add_dock_by_id(kDockId, "Vexel", g_dock)) {
-				/* Show it the first time; afterwards OBS remembers the layout. */
-				config_t *cfg = obs_frontend_get_user_config();
-				if (cfg && !config_get_bool(cfg, "OutputMapping", "DockShownOnce")) {
-					QTimer::singleShot(0, qApp, []() {
-						if (g_dock && g_dock->parentWidget())
-							g_dock->parentWidget()->show();
-					});
-					config_set_bool(cfg, "OutputMapping", "DockShownOnce", true);
+		/* OBS has restored its dock layout by now. Belt and braces: if the
+		 * user last left the dock open (or it's the first run) but it came
+		 * back hidden, show it again. */
+		QTimer::singleShot(0, qApp, []() {
+			auto *dw = g_dock ? qobject_cast<QDockWidget *>(g_dock->parentWidget()) : nullptr;
+			config_t *cfg = obs_frontend_get_user_config();
+			if (!dw || !cfg)
+				return;
+			config_set_default_bool(cfg, "OutputMapping", "DockVisible", true);
+			if (!config_get_bool(cfg, "OutputMapping", "DockShownOnce")) {
+				/* First run: dock it on the right of the main window rather
+				 * than leaving a small floating window. */
+				if (auto *main = static_cast<QMainWindow *>(obs_frontend_get_main_window())) {
+					dw->setFloating(false);
+					main->addDockWidget(Qt::RightDockWidgetArea, dw);
 				}
-			} else {
-				delete g_dock.data();
 			}
-		}
+			if (config_get_bool(cfg, "OutputMapping", "DockVisible") && dw->isHidden())
+				dw->show();
+			config_set_bool(cfg, "OutputMapping", "DockShownOnce", true);
+			/* From now on remember every show/hide the user makes. */
+			QObject::connect(dw->toggleViewAction(), &QAction::toggled, qApp, [](bool on) {
+				if (g_exiting)
+					return;
+				if (config_t *c = obs_frontend_get_user_config()) {
+					config_set_bool(c, "OutputMapping", "DockVisible", on);
+					config_save_safe(c, "tmp", nullptr);
+				}
+			});
+		});
 		if (getenv("OUTPUT_MAPPING_OPEN_EDITOR"))
 			QTimer::singleShot(500, qApp, []() { openEditor(); });
 		break;
@@ -683,6 +722,15 @@ bool obs_module_load(void)
 
 	Controller::create();
 	registerHotkeys();
+
+	/* Register the dock while modules load, BEFORE OBS restores its saved
+	 * dock layout, so its visibility, position, size and docked/floating
+	 * state come back after a restart like OBS' own docks. */
+	g_dock = new OutputDock([]() { openEditor(); });
+	if (!obs_frontend_add_dock_by_id(kDockId, "Vexel", g_dock)) {
+		obs_log(LOG_WARNING, "could not add the Vexel dock");
+		delete g_dock.data();
+	}
 
 	auto *action = static_cast<QAction *>(obs_frontend_add_tools_menu_qaction("Vexel Output Mapping…"));
 	QObject::connect(action, &QAction::triggered, []() { openEditor(); });
