@@ -12,7 +12,7 @@ include(defaults)
 include(helpers)
 
 if(NOT ENABLE_FRONTEND_API OR NOT ENABLE_QT)
-  message(FATAL_ERROR "Output Mapping requires ENABLE_FRONTEND_API=ON and ENABLE_QT=ON")
+  message(FATAL_ERROR "Vexel (output-mapping) requires ENABLE_FRONTEND_API=ON and ENABLE_QT=ON")
 endif()
 
 add_library(${CMAKE_PROJECT_NAME} MODULE)
@@ -66,6 +66,7 @@ target_sources(
     src/ui/mapping-editor.cpp
     src/ui/mapping-editor.hpp
     src/ui/status-text.hpp
+    src/ui/logo.hpp
     src/ui/theme.hpp
 )
 

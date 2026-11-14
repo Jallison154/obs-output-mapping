@@ -14,6 +14,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include "render/compositor.hpp"
 #include "ui/preview-view.hpp"
 #include "ui/status-text.hpp"
+#include "ui/logo.hpp"
 #include "ui/theme.hpp"
 
 #include <obs-frontend-api.h>
@@ -149,10 +150,11 @@ void SliceTree::dropEvent(QDropEvent *e)
 MappingEditor::MappingEditor(QWidget *parent) : QDialog(parent), c_(Controller::instance())
 {
 	setObjectName("OutputMappingEditor");
-	setWindowTitle(QStringLiteral("Output Mapping"));
+	setWindowTitle(QStringLiteral("Vexel – OBS Output Mapping"));
 	setWindowFlags(Qt::Window | Qt::WindowMinMaxButtonsHint | Qt::WindowCloseButtonHint);
 	setAttribute(Qt::WA_DeleteOnClose, false);
 	setStyleSheet(theme::styleSheet());
+	setWindowIcon(logo::appIcon());
 	resize(1500, 860);
 	setMinimumSize(1040, 600);
 
@@ -270,7 +272,7 @@ void MappingEditor::populatePresetsMenu(QMenu *m)
 	m->addSeparator();
 	m->addAction(QStringLiteral("Import Layout File…"), this, [this]() {
 		QString path = QFileDialog::getOpenFileName(this, QStringLiteral("Import Layout"), c_->presetsDir(),
-							    QStringLiteral("Output Mapping layout (*.json)"));
+							    QStringLiteral("Vexel layout (*.json)"));
 		QString err;
 		if (!path.isEmpty() && !c_->importLayout(path, &err))
 			QMessageBox::warning(this, QStringLiteral("Import Layout"), err);
@@ -281,7 +283,7 @@ void MappingEditor::populatePresetsMenu(QMenu *m)
 		QString dir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
 		QString path = QFileDialog::getSaveFileName(this, QStringLiteral("Export Layout"),
 							    dir + "/" + base + ".json",
-							    QStringLiteral("Output Mapping layout (*.json)"));
+							    QStringLiteral("Vexel layout (*.json)"));
 		QString err;
 		if (!path.isEmpty() && !c_->exportLayout(path, &err))
 			QMessageBox::warning(this, QStringLiteral("Export Layout"), err);
@@ -533,7 +535,7 @@ void MappingEditor::buildUi()
 		optMenu->addAction(QStringLiteral("Clear All Test Patterns"), this, [this]() { c_->clearIdentify(); });
 	optMenu->addAction(QStringLiteral("Keyboard Shortcuts…"), this, &MappingEditor::showShortcuts);
 	optMenu->addSeparator();
-	optMenu->addAction(QStringLiteral("About Output Mapping…"), this, &MappingEditor::showAbout);
+	optMenu->addAction(QStringLiteral("About Vexel…"), this, &MappingEditor::showAbout);
 	optMenu->addAction(QStringLiteral("Open Settings Folder"), this, [this]() {
 		QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(c_->configPath()).absolutePath()));
 	});
@@ -618,14 +620,18 @@ void MappingEditor::buildUi()
 	statusRight_->setObjectName("Status");
 	sl->addWidget(statusLeft_, 1);
 	sl->addWidget(statusRight_);
+	auto *mark = new QLabel(sb);
+	mark->setPixmap(logo::markPixmap(14, devicePixelRatioF()));
+	mark->setContentsMargins(6, 0, 0, 0);
+	sl->addWidget(mark);
 	auto *credit = new QLabel(
 		QStringLiteral(
-			"<a href='about' style='color:%1;text-decoration:none'>Output Mapping %2 · © 2026 Okami Designs</a>")
+			"<a href='about' style='color:%1;text-decoration:none'>Vexel %2 · © 2026 Okami Designs</a>")
 			.arg(theme::kMuted, QString::fromUtf8(PLUGIN_VERSION)),
 		sb);
 	credit->setObjectName("Status");
 	credit->setTextFormat(Qt::RichText);
-	credit->setToolTip(QStringLiteral("About Output Mapping"));
+	credit->setToolTip(QStringLiteral("About Vexel"));
 	connect(credit, &QLabel::linkActivated, this, [this](const QString &) { showAbout(); });
 	sl->addWidget(credit);
 	root->addWidget(sb);
@@ -1587,9 +1593,11 @@ void MappingEditor::pushDstFromFields(bool widthChanged, bool heightChanged)
 void MappingEditor::showAbout()
 {
 	QMessageBox box(this);
-	box.setWindowTitle(QStringLiteral("About Output Mapping"));
+	box.setWindowTitle(QStringLiteral("About Vexel"));
 	box.setTextFormat(Qt::RichText);
-	box.setText(QStringLiteral("<h3 style='margin:0'>Output Mapping %1</h3>"
+	box.setIconPixmap(logo::markPixmap(72, devicePixelRatioF(), true));
+	box.setText(QStringLiteral("<h2 style='margin:0;letter-spacing:3px'>VEXEL %1</h2>"
+				   "<p style='margin-top:2px;color:#19D3F5;letter-spacing:2px'>OBS OUTPUT MAPPING</p>"
 				   "<p>Slice the OBS Program canvas onto multiple displays.</p>"
 				   "<p><b>© 2026 Okami Designs</b></p>")
 			    .arg(QString::fromUtf8(PLUGIN_VERSION)));

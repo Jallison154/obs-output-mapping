@@ -102,7 +102,7 @@ OutputDock::OutputDock(std::function<void()> openEditor, QWidget *parent)
 	auto *stopAll = new QPushButton(QStringLiteral("■ Stop All"), this);
 	stopAll->setToolTip(QStringLiteral("Stop every output (asks first if any are live)"));
 	auto *editor = new QPushButton(QStringLiteral("Editor…"), this);
-	editor->setToolTip(QStringLiteral("Open the Output Mapping editor"));
+	editor->setToolTip(QStringLiteral("Open the Vexel editor"));
 	auto *patternsAll = new QPushButton(this);
 	patternsAll->setToolTip(QStringLiteral("Show the test pattern on every display (asks first if any are "
 					       "live); click again to clear all"));

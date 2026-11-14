@@ -30,7 +30,7 @@ the Free Software Foundation; either version 2 of the License, or
 
 namespace om {
 
-static constexpr uint32_t kBackground = 0xFF15171C;
+static constexpr uint32_t kBackground = 0xFF0C1322;
 static constexpr uint32_t kCanvasBorder = 0x55FFFFFF;
 static constexpr uint32_t kGuide = 0xFFFF3DCB;
 static constexpr double kMinZoom = 0.02, kMaxZoom = 32.0;
@@ -48,7 +48,7 @@ static uint32_t withAlpha(uint32_t c, int alpha)
 PreviewView::PreviewView(Kind kind, QWidget *parent) : ObsDisplayWidget(parent), kind_(kind)
 {
 	setFocusPolicy(Qt::StrongFocus);
-	setBackground(0x1C1715); /* BGR of kBackground */
+	setBackground(0x22130C); /* BGR of kBackground */
 	setMinimumSize(240, 160);
 	setCursor(kind_ == Kind::Input ? Qt::CrossCursor : Qt::ArrowCursor);
 	grabGesture(Qt::PinchGesture);

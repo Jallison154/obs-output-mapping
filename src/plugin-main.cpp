@@ -129,7 +129,7 @@ static void onUiThread(std::function<void()> fn)
 static void registerHotkeys()
 {
 	g_hkStart = obs_hotkey_register_frontend(
-		"output_mapping.start_all", "Output Mapping: Start all fullscreen outputs",
+		"output_mapping.start_all", "Vexel: Start all fullscreen outputs",
 		[](void *, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
 			if (pressed)
 				onUiThread([]() {
@@ -139,7 +139,7 @@ static void registerHotkeys()
 		},
 		nullptr);
 	g_hkStop = obs_hotkey_register_frontend(
-		"output_mapping.stop_all", "Output Mapping: Stop all outputs",
+		"output_mapping.stop_all", "Vexel: Stop all outputs",
 		[](void *, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
 			if (pressed)
 				onUiThread([]() {
@@ -149,7 +149,7 @@ static void registerHotkeys()
 		},
 		nullptr);
 	g_hkEditor = obs_hotkey_register_frontend(
-		"output_mapping.open_editor", "Output Mapping: Open editor",
+		"output_mapping.open_editor", "Vexel: Open editor",
 		[](void *, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
 			if (pressed)
 				onUiThread([]() { openEditor(); });
@@ -650,7 +650,7 @@ static void frontendEvent(enum obs_frontend_event event, void *)
 		}
 		if (!g_dock) {
 			g_dock = new OutputDock([]() { openEditor(); });
-			if (obs_frontend_add_dock_by_id(kDockId, "Output Mapping", g_dock)) {
+			if (obs_frontend_add_dock_by_id(kDockId, "Vexel", g_dock)) {
 				/* Show it the first time; afterwards OBS remembers the layout. */
 				config_t *cfg = obs_frontend_get_user_config();
 				if (cfg && !config_get_bool(cfg, "OutputMapping", "DockShownOnce")) {
@@ -684,9 +684,9 @@ bool obs_module_load(void)
 	Controller::create();
 	registerHotkeys();
 
-	auto *action = static_cast<QAction *>(obs_frontend_add_tools_menu_qaction("Output Mapping…"));
+	auto *action = static_cast<QAction *>(obs_frontend_add_tools_menu_qaction("Vexel Output Mapping…"));
 	QObject::connect(action, &QAction::triggered, []() { openEditor(); });
-	auto *stopAll = static_cast<QAction *>(obs_frontend_add_tools_menu_qaction("Output Mapping: Stop All Outputs"));
+	auto *stopAll = static_cast<QAction *>(obs_frontend_add_tools_menu_qaction("Vexel: Stop All Outputs"));
 	QObject::connect(stopAll, &QAction::triggered, []() {
 		if (Controller::instance())
 			Controller::instance()->stopAll();
@@ -711,10 +711,10 @@ void obs_module_unload(void)
 
 const char *obs_module_name(void)
 {
-	return "Output Mapping";
+	return "Vexel";
 }
 
 const char *obs_module_description(void)
 {
-	return "Output Mapping by Okami Designs: slice the Program canvas onto multiple displays.";
+	return "Vexel by Okami Designs: OBS output mapping. Slice the Program canvas onto multiple displays.";
 }

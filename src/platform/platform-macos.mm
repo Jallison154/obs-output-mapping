@@ -194,7 +194,7 @@ namespace om {
     {
         if (inhibit && g_assertion == kIOPMNullAssertionID) {
             IOPMAssertionCreateWithName(kIOPMAssertionTypePreventUserIdleDisplaySleep, kIOPMAssertionLevelOn,
-                                        CFSTR("OBS Output Mapping fullscreen output"), &g_assertion);
+                                        CFSTR("Vexel fullscreen output"), &g_assertion);
         } else if (!inhibit && g_assertion != kIOPMNullAssertionID) {
             IOPMAssertionRelease(g_assertion);
             g_assertion = kIOPMNullAssertionID;

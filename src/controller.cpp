@@ -370,7 +370,7 @@ void Controller::renameDisplay(const QString &id, const QString &name)
 			return;
 		d->name = name.trimmed();
 		if (outputs_.value(id))
-			outputs_.value(id)->setWindowTitle(QStringLiteral("Output Mapping – %1").arg(d->name));
+			outputs_.value(id)->setWindowTitle(QStringLiteral("Vexel – %1").arg(d->name));
 		changed(Change::Structure);
 	}
 }
@@ -856,12 +856,12 @@ static bool parseLayout(const QByteArray &raw, MappingDocument &out, QString *er
 	QJsonObject o = jd.object();
 	if (!o.value("displays").isArray()) {
 		if (error)
-			*error = QStringLiteral("Not an Output Mapping layout (no \"displays\").");
+			*error = QStringLiteral("Not a Vexel layout (no \"displays\").");
 		return false;
 	}
 	if (o.value("version").toInt(1) > 1) {
 		if (error)
-			*error = QStringLiteral("This layout was saved by a newer version of Output Mapping.");
+			*error = QStringLiteral("This layout was saved by a newer version of Vexel.");
 		return false;
 	}
 	out = MappingDocument::fromJson(o);
@@ -1154,7 +1154,7 @@ bool Controller::startFullscreen(const QString &displayId, QString *error)
 		stopOutput(displayId, false);
 
 	auto *w = new OutputWindow(displayId, OutputWindow::Mode::Fullscreen, si.screen,
-				   QStringLiteral("Output Mapping – %1").arg(d->name), d->width, d->height);
+				   QStringLiteral("Vexel – %1").arg(d->name), d->width, d->height);
 	connect(w, &OutputWindow::closeRequested, this, [this](const QString &id) { stopOutput(id, true); });
 	outputs_.insert(displayId, w);
 	w->showOutput(optionsFor(si.screen));
@@ -1180,10 +1180,9 @@ bool Controller::openWindow(const QString &displayId, QString *error)
 	if (outputs_.value(displayId))
 		stopOutput(displayId, false);
 
-	auto *w = new OutputWindow(
-		displayId, OutputWindow::Mode::Window, nullptr,
-		QStringLiteral("Output Mapping – %1 (%2×%3)").arg(d->name).arg(d->width).arg(d->height), d->width,
-		d->height);
+	auto *w = new OutputWindow(displayId, OutputWindow::Mode::Window, nullptr,
+				   QStringLiteral("Vexel – %1 (%2×%3)").arg(d->name).arg(d->width).arg(d->height),
+				   d->width, d->height);
 	connect(w, &OutputWindow::closeRequested, this, [this](const QString &id) { stopOutput(id, true); });
 	outputs_.insert(displayId, w);
 	w->showOutput(optionsFor(nullptr));

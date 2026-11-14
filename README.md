@@ -1,6 +1,8 @@
-# Output Mapping for OBS Studio
+<p align="center"><img src="docs/images/vexel-banner.png" alt="Vexel: OBS output mapping by Okami Designs" width="880"></p>
 
-A native OBS Studio plugin for multi-display output mapping. Draw
+# Vexel: OBS output mapping
+
+**Vexel** by Okami Designs (formerly "Output Mapping") is a native OBS Studio plugin for multi-display output mapping. Draw
 **slices** on the live Program canvas, assign each
 slice to a display (HDMI output), and independently adjust **which part of
 Program it grabs** (Input Selection) and **where it lands on the display**
@@ -33,8 +35,8 @@ is the place they would go).
 
 ## Features
 
-- **Output Mapping dock** in the main OBS window (OBS ▸ *Docks ▸ Output
-  Mapping*; shown automatically the first time): a confidence monitor with a
+- **Vexel dock** in the main OBS window (OBS ▸ *Docks ▸
+  Vexel*; shown automatically the first time): a confidence monitor with a
   live thumbnail of exactly what each display receives (including delay and
   test patterns), its status (LIVE / WINDOW / READY / OFFLINE / CHECK /
   VIRTUAL), the frames per second each running output actually draws (or a
@@ -46,9 +48,9 @@ is the place they would go).
   refresh about 10 times a second and contain no native video windows, so
   resizing, docking or floating the dock can't disturb OBS or the outputs.
 
-  ![Output Mapping dock](docs/images/dock.png)
+  ![Vexel dock](docs/images/dock.png)
 
-- **One editor window** (Tools ▸ *Output Mapping…*): a display and slice
+- **One editor window** (Tools ▸ *Vexel Output Mapping…*): a display and slice
   sidebar, plus two synchronized live previews side by side.
   - **Input Selection** shows the live Program canvas. Click and drag to draw a
     slice. Drag or resize a slice to change which Program pixels it grabs;
@@ -141,7 +143,7 @@ is the place they would go).
   - **Stop All asks first** when fullscreen outputs are live, so one stray
     click can't black out a show.
   - Hotkeys (Settings ▸ Hotkeys): *Start all fullscreen outputs*, *Stop all
-    outputs*, *Open editor*. Also Tools ▸ *Output Mapping: Stop All
+    outputs*, *Open editor*. Also Tools ▸ *Vexel: Stop All
     Outputs*.
   - **Esc** stops a windowed output. It stops a fullscreen output only when
     that output covers the screen OBS is on, so you can never get stuck
@@ -240,7 +242,7 @@ symbols or frontend internals are touched.
    exist (`ProgramData` is hidden, but typing the path still works).
 5. Move the `output-mapping` folder in there, so this file exists:
    `C:\ProgramData\obs-studio\plugins\output-mapping\bin\64bit\output-mapping.dll`
-6. Start OBS and open **Tools ▸ Output Mapping…**.
+6. Start OBS and open **Tools ▸ Vexel Output Mapping…**.
 
 To uninstall, delete that `output-mapping` folder. Every push to `main`
 also builds a fresh zip on GitHub Actions (*Actions* tab ▸ latest run ▸
@@ -262,7 +264,7 @@ Requires macOS 13 or later and OBS Studio 33. The installer is universal
 4. Click through the installer. It installs only for your user, into
    `~/Library/Application Support/obs-studio/plugins/`, with no admin
    password needed.
-5. Start OBS and open **Tools ▸ Output Mapping…**.
+5. Start OBS and open **Tools ▸ Vexel Output Mapping…**.
 
 To uninstall, delete `~/Library/Application Support/obs-studio/plugins/output-mapping.plugin`.
 
@@ -349,7 +351,7 @@ mkdir -p ~/Library/Application\ Support/obs-studio/plugins && ditto ~/Library/Ca
    (Windows: *Settings ▸ System ▸ Display*, choose "Extend these displays";
    macOS: *System Settings ▸ Displays*). Avoid "scaled" modes; the editor warns if a
    display is not pixel-exact.
-3. Open **Tools ▸ Output Mapping…**.
+3. Open **Tools ▸ Vexel Output Mapping…**.
 4. **＋ Display**: pick the first HDMI display, then **＋ Display** again
    for the second. Each appears in the sidebar with a green *Connected* dot
    and its resolution. Rename them by selecting one and editing *Name* (for
@@ -425,9 +427,16 @@ tools/               acceptance test, websocket client, test patterns
 See [VERIFICATION.md](VERIFICATION.md) for exactly what was verified on
 which setup, and what still needs testing with real hardware.
 
+## Upgrading from "Output Mapping"
+
+Vexel is the same plugin under a new name. The install folder
+(`output-mapping`), saved mappings and presets, hotkeys and the
+obs-websocket vendor name (`output-mapping`) are unchanged, so updating
+works exactly as before and nothing needs to be set up again.
+
 ## License
 
-The editor's footer and *Options ▸ About Output Mapping* show the version
+The editor's footer and *Options ▸ About Vexel* show the version
 and copyright. OBS's own Plugin Manager also lists the plugin under its name
 and version (from `data/manifest.json`; keep its `version` in step with
 `buildspec.json`).

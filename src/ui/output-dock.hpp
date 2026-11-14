@@ -8,7 +8,7 @@ the Free Software Foundation; either version 2 of the License, or
 (at your option) any later version.
 */
 
-// "Output Mapping" dock for the main OBS window: a confidence monitor per
+// "Vexel" dock for the main OBS window: a confidence monitor per
 // mapped display (live thumbnail of exactly what the display receives,
 // including delay and test patterns), status, and start/stop controls.
 

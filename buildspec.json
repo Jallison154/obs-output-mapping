@@ -37,8 +37,8 @@
         }
     },
     "name": "output-mapping",
-    "displayName": "Output Mapping",
-    "version": "0.5.3",
+    "displayName": "Vexel",
+    "version": "0.6.0",
     "author": "Okami Designs",
     "website": "https://github.com/Jallison154/obs-output-mapping",
     "email": "noreply@example.com"
