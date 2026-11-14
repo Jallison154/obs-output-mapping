@@ -8,7 +8,7 @@ the Free Software Foundation; either version 2 of the License, or
 (at your option) any later version.
 */
 
-// The Vexel mark: a "V" built from display tiles, cyan -> blue -> purple
+// The Vexel mark: a "V" built from eight display tiles, cyan -> blue -> purple
 // (Okami Designs brand guide). Drawn as vectors so it is sharp at any size.
 
 #pragma once
@@ -51,23 +51,32 @@ inline void paintMark(QPainter &p, const QRectF &r, bool tile = false)
 	auto pt = [&](qreal x, qreal y) {
 		return QPointF(m.x() + m.width() * x / 100.0, m.y() + m.height() * y / 100.0);
 	};
+	/* Traced from the brand artwork: four tiles per wing (outer and inner,
+	 * top and bottom); the inner tiles slant in to the V's point. */
 	const std::initializer_list<std::initializer_list<QPointF>> left = {
-		{{2, 14}, {24, 25}, {24, 50}, {8, 42}},   /* outer top */
-		{{28, 27}, {48, 37}, {48, 62}, {28, 52}}, /* inner top */
-		{{11, 47}, {48, 66}, {48, 90}, {24, 77}}, /* lower */
+		{{0.4, 14.9}, {23.4, 27.3}, {23.4, 43.2}, {0.4, 37.5}},   /* outer top */
+		{{25.1, 27.7}, {40.0, 35.4}, {48.5, 62.4}, {25.1, 50.7}}, /* inner top */
+		{{6.4, 44.3}, {23.4, 51.7}, {23.4, 71.9}, {6.4, 64.5}},   /* outer bottom */
+		{{25.1, 52.4}, {48.9, 63.9}, {48.9, 85.8}, {25.1, 74.1}}, /* inner bottom */
 	};
-	QLinearGradient g(m.topLeft(), m.topRight());
-	g.setColorAt(0.0, QColor(kCyan));
-	g.setColorAt(0.55, QColor(kBlue));
+	/* Cyan (left) -> blue -> purple (right), deepening to blue lower down. */
+	QLinearGradient g(pt(0, 0), pt(100, 0));
+	g.setColorAt(0.0, QColor("#22E6FF"));
+	g.setColorAt(0.5, QColor(kBlue));
 	g.setColorAt(1.0, QColor(kPurple));
+	QLinearGradient shade(pt(0, 15), pt(0, 86));
+	shade.setColorAt(0.0, QColor(47, 107, 255, 0));
+	shade.setColorAt(1.0, QColor(40, 80, 255, 110));
 	p.setPen(Qt::NoPen);
-	p.setBrush(g);
-	for (bool mirror : {false, true}) {
-		for (const auto &poly : left) {
-			QPolygonF q;
-			for (const QPointF &v : poly)
-				q << pt(mirror ? 100.0 - v.x() : v.x(), v.y());
-			p.drawPolygon(q);
+	for (const QBrush &brush : {QBrush(g), QBrush(shade)}) {
+		p.setBrush(brush);
+		for (bool mirror : {false, true}) {
+			for (const auto &poly : left) {
+				QPolygonF q;
+				for (const QPointF &v : poly)
+					q << pt(mirror ? 100.0 - v.x() : v.x(), v.y());
+				p.drawPolygon(q);
+			}
 		}
 	}
 	p.restore();

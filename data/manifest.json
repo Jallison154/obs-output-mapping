@@ -2,7 +2,7 @@
     "display_name": "Vexel – OBS Output Mapping",
     "id": "com.okamidesigns.output-mapping",
     "name": "output-mapping",
-    "version": "0.6.1",
+    "version": "0.6.2",
     "description": "Slice the Program canvas onto multiple displays. By Okami Designs.",
     "long_description": "Multi-display output mapping for OBS Studio: draw slices on the live Program canvas, assign them to displays, and position each one independently. Copyright (C) 2026 Okami Designs. GPL-2.0-or-later.",
     "urls": {

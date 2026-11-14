@@ -14,6 +14,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include "controller.hpp"
 #include "render/compositor.hpp"
 #include "ui/mapping-editor.hpp"
+#include "ui/logo.hpp"
 #include "ui/output-dock.hpp"
 #include "ui/preview-view.hpp"
 
@@ -556,6 +557,20 @@ VENDOR_REQ(DockInfo)
 	});
 }
 
+/* Automation: save the Vexel mark (as drawn in the UI) to a PNG. */
+VENDOR_REQ(LogoCapture)
+{
+	runBlocking([&]() {
+		if (!automationEnabled())
+			return setError(res, "set OUTPUT_MAPPING_AUTOMATION=1 to enable");
+		const int size = std::clamp((int)obs_data_get_int(req, "size"), 16, 1024);
+		QPixmap pm = logo::markPixmap(size, 1.0, obs_data_get_bool(req, "tile"));
+		if (!pm.save(QString::fromUtf8(obs_data_get_string(req, "path"))))
+			return setError(res, "could not save");
+		obs_data_set_bool(res, "ok", true);
+	});
+}
+
 VENDOR_REQ(DockCapture)
 {
 	runBlocking([&]() {
@@ -636,6 +651,7 @@ static void registerVendor()
 	REG(DockCapture);
 	REG(DockResize);
 	REG(DockInfo);
+	REG(LogoCapture);
 #undef REG
 	obs_log(LOG_INFO, "registered obs-websocket vendor 'output-mapping'");
 }
